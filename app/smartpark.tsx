@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,10 +6,28 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Animated,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Car, Clock, MapPin, CheckCircle, Scan } from 'lucide-react-native';
+import { 
+  ArrowLeft, 
+  Car, 
+  Clock, 
+  MapPin, 
+  CheckCircle, 
+  Scan, 
+  Activity,
+  BarChart3,
+  Shield,
+  Zap,
+  Users,
+  TrendingUp,
+  AlertTriangle,
+  Wifi,
+  Battery
+} from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import OCRScanner from '@/components/OCRScanner';
 import { useApp } from '@/contexts/AppContext';
@@ -24,6 +42,30 @@ interface Vehicle {
   registeredAt: string;
   lastSeen: string;
   status: 'active' | 'inactive' | 'suspended';
+  parkingSpot?: string;
+  ownerName?: string;
+  accessLevel?: 'tenant' | 'visitor' | 'staff';
+  entryTime?: string;
+  exitTime?: string;
+}
+
+interface ParkingSpace {
+  id: string;
+  number: string;
+  status: 'occupied' | 'available' | 'reserved' | 'maintenance';
+  vehicleId?: string;
+  lastUpdated: string;
+  type: 'standard' | 'compact' | 'disabled' | 'electric';
+}
+
+interface SmartParkStats {
+  totalSpaces: number;
+  occupiedSpaces: number;
+  availableSpaces: number;
+  todayEntries: number;
+  todayExits: number;
+  peakHour: string;
+  averageStayTime: string;
 }
 
 const MOCK_VEHICLES: Vehicle[] = [
@@ -69,6 +111,27 @@ export default function SmartParkScreen() {
   const [vehicles, setVehicles] = useState<Vehicle[]>(MOCK_VEHICLES);
   const [showScanner, setShowScanner] = useState(false);
   const [scanType, setScanType] = useState<'license_plate' | 'vehicle_info' | 'general'>('license_plate');
+  const [refreshing, setRefreshing] = useState(false);
+  const [isConnected, setIsConnected] = useState(true);
+  const [batteryLevel, setBatteryLevel] = useState(85);
+  const [parkingSpaces] = useState<ParkingSpace[]>([
+    { id: '1', number: 'A01', status: 'occupied', vehicleId: '1', lastUpdated: new Date().toISOString(), type: 'standard' },
+    { id: '2', number: 'A02', status: 'available', lastUpdated: new Date().toISOString(), type: 'standard' },
+    { id: '3', number: 'A03', status: 'occupied', vehicleId: '2', lastUpdated: new Date().toISOString(), type: 'compact' },
+    { id: '4', number: 'B01', status: 'reserved', lastUpdated: new Date().toISOString(), type: 'disabled' },
+    { id: '5', number: 'B02', status: 'available', lastUpdated: new Date().toISOString(), type: 'electric' },
+  ]);
+  const [stats] = useState<SmartParkStats>({
+    totalSpaces: 50,
+    occupiedSpaces: 32,
+    availableSpaces: 18,
+    todayEntries: 45,
+    todayExits: 38,
+    peakHour: '9:00 AM',
+    averageStayTime: '4.2 hours',
+  });
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
 
   const handleScanPlate = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -80,6 +143,45 @@ export default function SmartParkScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setScanType('vehicle_info');
     setShowScanner(true);
+  }, []);
+
+  // Animation effects
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, slideAnim]);
+
+  // Simulate real-time updates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Simulate battery drain
+      setBatteryLevel(prev => Math.max(20, prev - Math.random() * 2));
+      
+      // Simulate connection status
+      setIsConnected(prev => Math.random() > 0.1 ? true : prev);
+    }, 30000); // Update every 30 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    // Simulate data refresh
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    setRefreshing(false);
   }, []);
 
   const handleScanComplete = useCallback((result: {
@@ -96,16 +198,27 @@ export default function SmartParkScreen() {
     const existingVehicle = vehicles.find(v => v.plateNumber === result.plateNumber);
     
     if (existingVehicle) {
+      // Update existing vehicle with entry time
+      const updatedVehicle = {
+        ...existingVehicle,
+        lastSeen: new Date().toISOString(),
+        entryTime: new Date().toISOString(),
+        status: 'active' as const,
+      };
+      
+      setVehicles(prev => prev.map(v => v.id === existingVehicle.id ? updatedVehicle : v));
+      
       Alert.alert(
-        'Vehicle Found',
-        `This vehicle (${result.plateNumber}) is already registered.`,
+        '🚗 Vehicle Entry Recorded',
+        `${result.plateNumber} has entered the parking area.\n\nConfidence: ${Math.round(result.confidence * 100)}%\nTime: ${new Date().toLocaleTimeString()}`,
         [
           { text: 'OK', style: 'default' },
-          { text: 'View Details', onPress: () => console.log('View vehicle details') },
+          { text: 'View Details', onPress: () => handleVehiclePress(existingVehicle) },
         ]
       );
     } else {
-      // Add new vehicle
+      // Add new vehicle with smart detection
+      const availableSpot = parkingSpaces.find(s => s.status === 'available');
       const newVehicle: Vehicle = {
         id: Date.now().toString(),
         plateNumber: result.plateNumber,
@@ -115,18 +228,22 @@ export default function SmartParkScreen() {
         color: 'Unknown',
         registeredAt: new Date().toISOString(),
         lastSeen: new Date().toISOString(),
+        entryTime: new Date().toISOString(),
         status: 'active',
+        parkingSpot: availableSpot?.number,
+        accessLevel: isLandlord ? 'staff' : 'visitor',
+        ownerName: 'Unknown',
       };
 
       setVehicles(prev => [newVehicle, ...prev]);
       
       Alert.alert(
-        'Vehicle Registered',
-        `${result.plateNumber} has been successfully registered.`,
+        '✅ New Vehicle Registered',
+        `${result.plateNumber} has been successfully registered and assigned to spot ${availableSpot?.number || 'TBD'}.\n\nConfidence: ${Math.round(result.confidence * 100)}%\nVehicle: ${result.make} ${result.model}`,
         [{ text: 'OK', style: 'default' }]
       );
     }
-  }, [vehicles]);
+  }, [vehicles, parkingSpaces, isLandlord]);
 
   const handleVehiclePress = useCallback((vehicle: Vehicle) => {
     Haptics.selectionAsync();
@@ -203,18 +320,80 @@ export default function SmartParkScreen() {
         </View>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={['#3B82F6']}
+            tintColor="#3B82F6"
+          />
+        }
+      >
+        {/* Smart Status Bar */}
+        <Animated.View style={[styles.statusBar, { opacity: fadeAnim }]}>
+          <View style={styles.statusItem}>
+            <Wifi size={16} color={isConnected ? "#10B981" : "#EF4444"} />
+            <Text style={[styles.statusText, { color: isConnected ? "#10B981" : "#EF4444" }]}>
+              {isConnected ? 'Connected' : 'Offline'}
+            </Text>
+          </View>
+          <View style={styles.statusItem}>
+            <Battery size={16} color={batteryLevel > 30 ? "#10B981" : "#F59E0B"} />
+            <Text style={[styles.statusText, { color: batteryLevel > 30 ? "#10B981" : "#F59E0B" }]}>
+              {batteryLevel}%
+            </Text>
+          </View>
+          <View style={styles.statusItem}>
+            <Activity size={16} color="#3B82F6" />
+            <Text style={styles.statusText}>Live</Text>
+          </View>
+        </Animated.View>
+
+        {/* Smart Analytics Dashboard */}
+        {isLandlord && (
+          <Animated.View style={[styles.section, { transform: [{ translateY: slideAnim }] }]}>
+            <Text style={styles.sectionTitle}>Smart Analytics</Text>
+            <View style={styles.analyticsGrid}>
+              <View style={styles.analyticsCard}>
+                <BarChart3 size={24} color="#3B82F6" />
+                <Text style={styles.analyticsValue}>{stats.occupiedSpaces}/{stats.totalSpaces}</Text>
+                <Text style={styles.analyticsLabel}>Occupancy</Text>
+              </View>
+              <View style={styles.analyticsCard}>
+                <TrendingUp size={24} color="#10B981" />
+                <Text style={styles.analyticsValue}>{stats.todayEntries}</Text>
+                <Text style={styles.analyticsLabel}>Today's Entries</Text>
+              </View>
+              <View style={styles.analyticsCard}>
+                <Clock size={24} color="#F59E0B" />
+                <Text style={styles.analyticsValue}>{stats.averageStayTime}</Text>
+                <Text style={styles.analyticsLabel}>Avg. Stay</Text>
+              </View>
+              <View style={styles.analyticsCard}>
+                <Users size={24} color="#8B5CF6" />
+                <Text style={styles.analyticsValue}>{stats.peakHour}</Text>
+                <Text style={styles.analyticsLabel}>Peak Hour</Text>
+              </View>
+            </View>
+          </Animated.View>
+        )}
+
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <Text style={styles.sectionTitle}>Smart Actions</Text>
           <View style={styles.actionButtons}>
             <TouchableOpacity style={[styles.actionButton, styles.emphasisButton]} onPress={handleScanPlate}>
               <Scan size={24} color="#FFFFFF" />
-              <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>Start Scanning</Text>
+              <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>Smart Scan</Text>
+              <Text style={[styles.actionSubtext, { color: '#E5E7EB' }]}>AI-Powered</Text>
             </TouchableOpacity>
             {isLandlord && (
               <TouchableOpacity style={styles.actionButton} onPress={handleScanVehicle}>
-                <Car size={24} color="#10B981" />
-                <Text style={styles.actionButtonText}>Scan Vehicle</Text>
+                <Shield size={24} color="#10B981" />
+                <Text style={styles.actionButtonText}>Security Scan</Text>
+                <Text style={styles.actionSubtext}>Advanced Mode</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -251,7 +430,7 @@ export default function SmartParkScreen() {
                         { backgroundColor: getStatusColor(vehicle.status) + '20' }
                       ]}>
                         <Text style={[
-                          styles.statusText,
+                          styles.vehicleStatusText,
                           { color: getStatusColor(vehicle.status) }
                         ]}>
                           {getStatusText(vehicle.status)}
@@ -274,8 +453,24 @@ export default function SmartParkScreen() {
                       </View>
                     </View>
 
+                    {/* Enhanced vehicle info */}
+                    {vehicle.parkingSpot && (
+                      <View style={styles.vehicleSpot}>
+                        <MapPin size={14} color="#3B82F6" />
+                        <Text style={styles.vehicleSpotText}>Spot: {vehicle.parkingSpot}</Text>
+                        {vehicle.accessLevel && (
+                          <View style={[styles.accessBadge, 
+                            vehicle.accessLevel === 'staff' ? styles.staffBadge :
+                            vehicle.accessLevel === 'tenant' ? styles.tenantBadge : styles.visitorBadge
+                          ]}>
+                            <Text style={styles.accessText}>{vehicle.accessLevel.toUpperCase()}</Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+
                     <View style={styles.vehicleActions}>
-                      <TouchableOpacity style={styles.actionButtonSmall}>
+                      <TouchableOpacity style={styles.actionButtonSmall} onPress={() => handleVehiclePress(vehicle)}>
                         <Text style={styles.actionButtonSmallText}>View Details</Text>
                       </TouchableOpacity>
                       <TouchableOpacity 
@@ -296,21 +491,28 @@ export default function SmartParkScreen() {
 
         {isLandlord && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Parking History</Text>
+            <Text style={styles.sectionTitle}>Smart Parking History</Text>
             <View style={styles.historyCard}>
-              <Text style={styles.historyTitle}>Recent Activity</Text>
+              <Text style={styles.historyTitle}>Real-Time Activity</Text>
               <View style={styles.historyItem}>
                 <CheckCircle size={20} color="#10B981" />
                 <View style={styles.historyContent}>
-                  <Text style={styles.historyText}>Vehicle KCA 123A entered parking</Text>
-                  <Text style={styles.historyTime}>2 hours ago</Text>
+                  <Text style={styles.historyText}>🚗 KCA 123A entered (Spot A01)</Text>
+                  <Text style={styles.historyTime}>2 hours ago • Confidence: 98%</Text>
+                </View>
+              </View>
+              <View style={styles.historyItem}>
+                <AlertTriangle size={20} color="#F59E0B" />
+                <View style={styles.historyContent}>
+                  <Text style={styles.historyText}>⚠️ Unauthorized vehicle detected</Text>
+                  <Text style={styles.historyTime}>3 hours ago • Requires attention</Text>
                 </View>
               </View>
               <View style={styles.historyItem}>
                 <CheckCircle size={20} color="#10B981" />
                 <View style={styles.historyContent}>
-                  <Text style={styles.historyText}>Vehicle KCB 456B exited parking</Text>
-                  <Text style={styles.historyTime}>5 hours ago</Text>
+                  <Text style={styles.historyText}>🚙 KCB 456B exited (Spot A03)</Text>
+                  <Text style={styles.historyTime}>5 hours ago • Duration: 4.2h</Text>
                 </View>
               </View>
             </View>
@@ -318,26 +520,31 @@ export default function SmartParkScreen() {
         )}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>How It Works</Text>
+          <Text style={styles.sectionTitle}>AI-Powered SmartPark</Text>
           <View style={styles.infoCard}>
-            <Text style={styles.infoTitle}>Role-Based SmartPark</Text>
+            <Text style={styles.infoTitle}>🧠 Intelligent Parking System</Text>
             <Text style={styles.infoText}>
-              Landlords register and manage vehicles. Tenants use the scanner for access.
+              Advanced AI technology for seamless parking management with real-time analytics and automated security.
             </Text>
             <View style={styles.infoFeatures}>
-              <Text style={styles.infoFeature}>• Landlords: Register tenants' vehicles</Text>
-              <Text style={styles.infoFeature}>• Tenants: Scan to enter/exit</Text>
-              <Text style={styles.infoFeature}>• Automatic plate recognition</Text>
-              <Text style={styles.infoFeature}>• Secure logs and history</Text>
+              <Text style={styles.infoFeature}>🤖 AI-powered license plate recognition</Text>
+              <Text style={styles.infoFeature}>📊 Real-time occupancy analytics</Text>
+              <Text style={styles.infoFeature}>🔒 Automated security monitoring</Text>
+              <Text style={styles.infoFeature}>⚡ Smart space allocation</Text>
+              <Text style={styles.infoFeature}>📱 Mobile-first experience</Text>
+              <Text style={styles.infoFeature}>🌐 Cloud-based data sync</Text>
             </View>
           </View>
         </View>
       </ScrollView>
 
-      {/* Floating scan button visible to all */}
-      <TouchableOpacity style={styles.fab} onPress={handleScanPlate}>
-        <Scan size={24} color="#FFFFFF" />
-      </TouchableOpacity>
+      {/* Enhanced floating action button */}
+      <Animated.View style={[styles.fabContainer, { opacity: fadeAnim }]}>
+        <TouchableOpacity style={styles.fab} onPress={handleScanPlate}>
+          <Zap size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+        <Text style={styles.fabLabel}>Smart Scan</Text>
+      </Animated.View>
 
       {showScanner && (
         <OCRScanner
@@ -491,7 +698,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 6,
   },
-  statusText: {
+  vehicleStatusText: {
     fontSize: 12,
     fontWeight: '600',
   },
@@ -589,10 +796,100 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#374151',
   },
-  fab: {
+  statusBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    backgroundColor: '#1F2937',
+    marginHorizontal: 20,
+    marginVertical: 10,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  statusItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  analyticsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  analyticsCard: {
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  analyticsValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#111827',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  analyticsLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  actionSubtext: {
+    fontSize: 11,
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  vehicleSpot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  vehicleSpotText: {
+    fontSize: 12,
+    color: '#3B82F6',
+    fontWeight: '600',
+  },
+  accessBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 'auto',
+  },
+  staffBadge: {
+    backgroundColor: '#FEF3C7',
+  },
+  tenantBadge: {
+    backgroundColor: '#DBEAFE',
+  },
+  visitorBadge: {
+    backgroundColor: '#F3E8FF',
+  },
+  accessText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#374151',
+  },
+  fabContainer: {
     position: 'absolute',
     right: 20,
     bottom: 24,
+    alignItems: 'center',
+  },
+  fab: {
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -604,5 +901,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 6,
+  },
+  fabLabel: {
+    fontSize: 12,
+    color: '#3B82F6',
+    fontWeight: '600',
+    marginTop: 4,
+    textAlign: 'center',
   },
 });
