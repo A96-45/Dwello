@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,11 +7,11 @@ import {
   Alert,
   Dimensions,
 } from 'react-native';
-import { Camera, CameraType } from 'expo-camera';
+import { Camera, CameraType, CameraView } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
-import { X, RotateCcw, Flash, FlashOff, CheckCircle, AlertCircle } from 'lucide-react-native';
+import { X, RotateCcw, Flashlight, FlashlightOff, CheckCircle, AlertCircle } from 'lucide-react-native';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface OCRScannerProps {
   visible: boolean;
@@ -41,12 +41,28 @@ export default function OCRScanner({
   const [flashMode, setFlashMode] = useState<'off' | 'on' | 'auto'>('off');
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<string | null>(null);
-  const cameraRef = useRef<Camera>(null);
+  const cameraRef = useRef<CameraView | null>(null);
 
   const requestCameraPermission = useCallback(async () => {
     const { status } = await Camera.requestCameraPermissionsAsync();
     setHasPermission(status === 'granted');
   }, []);
+
+  // Ensure we request camera permission as soon as scanner becomes visible
+  useEffect(() => {
+    if (!visible) return;
+    if (hasPermission === null) {
+      (async () => {
+        const existing = await Camera.getCameraPermissionsAsync();
+        if (existing.status === 'granted') {
+          setHasPermission(true);
+        } else {
+          const { status } = await Camera.requestCameraPermissionsAsync();
+          setHasPermission(status === 'granted');
+        }
+      })();
+    }
+  }, [visible, hasPermission]);
 
   const handleCameraReady = useCallback(() => {
     if (hasPermission === null) {
@@ -201,11 +217,11 @@ export default function OCRScanner({
 
   return (
     <View style={styles.container}>
-      <Camera
+      <CameraView
         ref={cameraRef}
         style={styles.camera}
-        type={cameraType}
-        flashMode={flashMode}
+        facing={cameraType}
+        flash={flashMode}
         onCameraReady={handleCameraReady}
       >
         <View style={styles.overlay}>
@@ -214,14 +230,14 @@ export default function OCRScanner({
               <X size={24} color="#FFFFFF" />
             </TouchableOpacity>
             <View style={styles.headerCenter}>
-              <Text style={styles.headerTitle}>{instructions.title}</Text>
-              <Text style={styles.headerSubtitle}>{instructions.subtitle}</Text>
+              <Text style={styles.headerTitle}>{title}</Text>
+              <Text style={styles.headerSubtitle}>{subtitle}</Text>
             </View>
             <TouchableOpacity style={styles.flashButton} onPress={toggleFlash}>
               {flashMode === 'off' ? (
-                <FlashOff size={24} color="#FFFFFF" />
+                <FlashlightOff size={24} color="#FFFFFF" />
               ) : (
-                <Flash size={24} color="#FFFFFF" />
+                <Flashlight size={24} color="#FFFFFF" />
               )}
             </TouchableOpacity>
           </View>
@@ -272,7 +288,7 @@ export default function OCRScanner({
             </View>
           </View>
         </View>
-      </Camera>
+      </CameraView>
     </View>
   );
 }

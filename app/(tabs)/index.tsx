@@ -16,6 +16,7 @@ import { useApp } from '@/contexts/AppContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { MOCK_PROPERTIES } from '@/mocks/properties';
 import type { FilterOptions, Property } from '@/types';
+import LandlordDashboardScreen from '../landlord-dashboard';
 
 // Extended property type for endless scrolling
 interface ExtendedProperty extends Property {
@@ -199,97 +200,9 @@ export default function HomeScreen() {
     v !== undefined && v !== null && (Array.isArray(v) ? v.length > 0 : true)
   ).length;
 
-  // Show landlord analytics directly if user is a landlord
+  // Show full landlord dashboard when user is a landlord
   if (isLandlord) {
-    const ANALYTICS = {
-      totalRevenue: 245000,
-      revenueChange: 12.5,
-      totalProperties: 8,
-      propertiesChange: 0,
-      totalViews: 2847,
-      viewsChange: 8.3,
-      totalInquiries: 23,
-      inquiriesChange: -5.2,
-      occupancyRate: 87.5,
-      occupancyChange: 2.1,
-      averageRating: 4.8,
-      ratingChange: 0.3,
-    };
-
-    return (
-      <View style={[styles.container, { paddingTop: insets.top }]}> 
-        <View style={styles.header}>
-          <Text style={styles.logo}>Dwello</Text>
-          <View style={styles.headerRight}>
-            <TouchableOpacity 
-              style={styles.searchButton}
-              onPress={() => {
-                Haptics.selectionAsync();
-                router.push('/search');
-              }}
-            >
-              <Search size={24} color="#3B82F6" />
-            </TouchableOpacity>
-          </View>
-        </View>
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-          <View style={{ padding: 20 }}>
-            <Text style={styles.landlordTitle}>Analytics Overview</Text>
-            <Text style={styles.landlordSubtitle}>Key metrics at a glance</Text>
-            <View style={styles.analyticsGrid}> 
-              <AnalyticsCard
-                title="Total Revenue"
-                value={`KES ${ANALYTICS.totalRevenue.toLocaleString()}`}
-                change={ANALYTICS.revenueChange}
-                changeType="increase"
-                subtitle="This month"
-                icon={<DollarSign size={20} color="#10B981" />}
-              />
-              <AnalyticsCard
-                title="Properties"
-                value={ANALYTICS.totalProperties}
-                change={ANALYTICS.propertiesChange}
-                changeType="neutral"
-                subtitle="Active listings"
-                icon={<HomeIcon size={20} color="#3B82F6" />}
-              />
-              <AnalyticsCard
-                title="Total Views"
-                value={ANALYTICS.totalViews.toLocaleString()}
-                change={ANALYTICS.viewsChange}
-                changeType="increase"
-                subtitle="All time"
-                icon={<Eye size={20} color="#8B5CF6" />}
-              />
-              <AnalyticsCard
-                title="Inquiries"
-                value={ANALYTICS.totalInquiries}
-                change={ANALYTICS.inquiriesChange}
-                changeType="decrease"
-                subtitle="This month"
-                icon={<MessageCircle size={20} color="#F59E0B" />}
-              />
-              <AnalyticsCard
-                title="Occupancy Rate"
-                value={`${ANALYTICS.occupancyRate}%`}
-                change={ANALYTICS.occupancyChange}
-                changeType="increase"
-                subtitle="Current"
-                icon={<TrendingUp size={20} color="#10B981" />}
-              />
-              <AnalyticsCard
-                title="Average Rating"
-                value={ANALYTICS.averageRating}
-                change={ANALYTICS.ratingChange}
-                changeType="increase"
-                subtitle="From tenants"
-                icon={<Heart size={20} color="#EF4444" />}
-              />
-            </View>
-          </View>
-        </ScrollView>
-      </View>
-    );
+    return <LandlordDashboardScreen />;
   }
 
   return (
