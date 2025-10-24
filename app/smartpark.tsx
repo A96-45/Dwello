@@ -6,11 +6,14 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  TextInput,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Camera, Car, QrCode, Clock, MapPin, CheckCircle } from 'lucide-react-native';
+import { ArrowLeft, Camera, Car, QrCode, Clock, MapPin, CheckCircle, Plus, X, Scan } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { useApp } from '@/contexts/AppContext';
 import OCRScanner from '@/components/OCRScanner';
 
 interface Vehicle {
@@ -64,15 +67,28 @@ const MOCK_VEHICLES: Vehicle[] = [
 export default function SmartParkScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isLandlord, isTenant } = useApp();
   const [vehicles, setVehicles] = useState<Vehicle[]>(MOCK_VEHICLES);
   const [showScanner, setShowScanner] = useState(false);
+  const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
   const [scanType, setScanType] = useState<'license_plate' | 'vehicle_info' | 'general'>('license_plate');
+  const [newVehicle, setNewVehicle] = useState({
+    plateNumber: '',
+    vehicleType: '',
+    make: '',
+    model: '',
+    color: '',
+  });
 
   const handleScanPlate = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setScanType('license_plate');
-    setShowScanner(true);
-  }, []);
+    if (isTenant) {
+      handleTenantScan();
+    } else {
+      setScanType('license_plate');
+      setShowScanner(true);
+    }
+  }, [isTenant, handleTenantScan]);
 
   const handleScanVehicle = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -148,6 +164,51 @@ export default function SmartParkScreen() {
     );
   }, []);
 
+  const handleAddVehicle = useCallback(() => {
+    if (!newVehicle.plateNumber.trim()) {
+      Alert.alert('Error', 'Please enter a plate number');
+      return;
+    }
+
+    const vehicle: Vehicle = {
+      id: Date.now().toString(),
+      plateNumber: newVehicle.plateNumber,
+      vehicleType: newVehicle.vehicleType || 'Unknown',
+      make: newVehicle.make || 'Unknown',
+      model: newVehicle.model || 'Unknown',
+      color: newVehicle.color || 'Unknown',
+      registeredAt: new Date().toISOString(),
+      lastSeen: new Date().toISOString(),
+      status: 'active',
+    };
+
+    setVehicles(prev => [vehicle, ...prev]);
+    setNewVehicle({
+      plateNumber: '',
+      vehicleType: '',
+      make: '',
+      model: '',
+      color: '',
+    });
+    setShowAddVehicleModal(false);
+    
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert('Success', 'Vehicle added successfully!');
+  }, [newVehicle]);
+
+  const handleTenantScan = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Simulate QR code scan for parking entry/exit
+    setTimeout(() => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        'Parking Access',
+        'Access granted! Gate opening...',
+        [{ text: 'OK', style: 'default' }]
+      );
+    }, 1000);
+  }, []);
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
@@ -205,25 +266,42 @@ export default function SmartParkScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           <View style={styles.actionButtons}>
-            <TouchableOpacity style={styles.actionButton} onPress={handleScanPlate}>
-              <Camera size={24} color="#3B82F6" />
-              <Text style={styles.actionButtonText}>Scan License Plate</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton} onPress={handleScanVehicle}>
-              <Car size={24} color="#10B981" />
-              <Text style={styles.actionButtonText}>Scan Vehicle</Text>
-            </TouchableOpacity>
+            {isLandlord ? (
+              <>
+                <TouchableOpacity style={styles.actionButton} onPress={handleScanPlate}>
+                  <Camera size={24} color="#3B82F6" />
+                  <Text style={styles.actionButtonText}>Scan License Plate</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.actionButton} onPress={() => setShowAddVehicleModal(true)}>
+                  <Plus size={24} color="#10B981" />
+                  <Text style={styles.actionButtonText}>Add Vehicle</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity style={styles.scanButton} onPress={handleScanPlate}>
+                  <Scan size={32} color="#FFFFFF" />
+                  <Text style={styles.scanButtonText}>Scan QR Code</Text>
+                  <Text style={styles.scanButtonSubtext}>Scan to enter/exit parking</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>My Vehicles ({vehicles.length})</Text>
+          <Text style={styles.sectionTitle}>
+            {isLandlord ? `Registered Vehicles (${vehicles.length})` : 'My Vehicles'}
+          </Text>
           {vehicles.length === 0 ? (
             <View style={styles.emptyState}>
               <Car size={48} color="#9CA3AF" />
               <Text style={styles.emptyTitle}>No Vehicles Registered</Text>
               <Text style={styles.emptySubtitle}>
-                Scan your license plate or vehicle to get started
+                {isLandlord 
+                  ? 'Add vehicles to manage parking access'
+                  : 'Ask your landlord to register your vehicle'
+                }
               </Text>
             </View>
           ) : (
@@ -269,19 +347,21 @@ export default function SmartParkScreen() {
                     </View>
                   </View>
 
-                  <View style={styles.vehicleActions}>
-                    <TouchableOpacity style={styles.actionButtonSmall}>
-                      <Text style={styles.actionButtonSmallText}>View Details</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      style={[styles.actionButtonSmall, styles.removeButton]}
-                      onPress={() => handleRemoveVehicle(vehicle.id)}
-                    >
-                      <Text style={[styles.actionButtonSmallText, styles.removeButtonText]}>
-                        Remove
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
+                  {isLandlord && (
+                    <View style={styles.vehicleActions}>
+                      <TouchableOpacity style={styles.actionButtonSmall}>
+                        <Text style={styles.actionButtonSmallText}>View Details</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={[styles.actionButtonSmall, styles.removeButton]}
+                        onPress={() => handleRemoveVehicle(vehicle.id)}
+                      >
+                        <Text style={[styles.actionButtonSmallText, styles.removeButtonText]}>
+                          Remove
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </TouchableOpacity>
               ))}
             </View>
@@ -339,6 +419,88 @@ export default function SmartParkScreen() {
           }
         />
       )}
+
+      {/* Add Vehicle Modal */}
+      <Modal
+        visible={showAddVehicleModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowAddVehicleModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Add Vehicle</Text>
+            <TouchableOpacity
+              onPress={() => setShowAddVehicleModal(false)}
+              style={styles.closeButton}
+            >
+              <X size={24} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Plate Number *</Text>
+              <TextInput
+                style={styles.textInput}
+                value={newVehicle.plateNumber}
+                onChangeText={(text) => setNewVehicle(prev => ({ ...prev, plateNumber: text.toUpperCase() }))}
+                placeholder="KCA 123A"
+                autoCapitalize="characters"
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Vehicle Type</Text>
+              <TextInput
+                style={styles.textInput}
+                value={newVehicle.vehicleType}
+                onChangeText={(text) => setNewVehicle(prev => ({ ...prev, vehicleType: text }))}
+                placeholder="Sedan, SUV, Hatchback, etc."
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Make</Text>
+              <TextInput
+                style={styles.textInput}
+                value={newVehicle.make}
+                onChangeText={(text) => setNewVehicle(prev => ({ ...prev, make: text }))}
+                placeholder="Toyota, Honda, Nissan, etc."
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Model</Text>
+              <TextInput
+                style={styles.textInput}
+                value={newVehicle.model}
+                onChangeText={(text) => setNewVehicle(prev => ({ ...prev, model: text }))}
+                placeholder="Camry, CR-V, Note, etc."
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Color</Text>
+              <TextInput
+                style={styles.textInput}
+                value={newVehicle.color}
+                onChangeText={(text) => setNewVehicle(prev => ({ ...prev, color: text }))}
+                placeholder="White, Black, Silver, etc."
+              />
+            </View>
+          </ScrollView>
+
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={handleAddVehicle}
+            >
+              <Text style={styles.addButtonText}>Add Vehicle</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -571,5 +733,81 @@ const styles = StyleSheet.create({
   infoFeature: {
     fontSize: 14,
     color: '#374151',
+  },
+  // New styles for enhanced SmartPark
+  scanButton: {
+    backgroundColor: '#3B82F6',
+    padding: 24,
+    borderRadius: 16,
+    alignItems: 'center',
+    flex: 1,
+    gap: 8,
+  },
+  scanButtonText: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+  },
+  scanButtonSubtext: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+  },
+  // Modal styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: '#111827',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#111827',
+    marginBottom: 8,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: '#FFFFFF',
+  },
+  modalFooter: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  addButton: {
+    backgroundColor: '#10B981',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  addButtonText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
   },
 });
