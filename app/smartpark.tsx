@@ -9,9 +9,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Camera, Car, QrCode, Clock, MapPin, CheckCircle } from 'lucide-react-native';
+import { ArrowLeft, Car, Clock, MapPin, CheckCircle, Scan } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import OCRScanner from '@/components/OCRScanner';
+import { useApp } from '@/contexts/AppContext';
 
 interface Vehicle {
   id: string;
@@ -64,6 +65,7 @@ const MOCK_VEHICLES: Vehicle[] = [
 export default function SmartParkScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isLandlord } = useApp();
   const [vehicles, setVehicles] = useState<Vehicle[]>(MOCK_VEHICLES);
   const [showScanner, setShowScanner] = useState(false);
   const [scanType, setScanType] = useState<'license_plate' | 'vehicle_info' | 'general'>('license_plate');
@@ -205,126 +207,137 @@ export default function SmartParkScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           <View style={styles.actionButtons}>
-            <TouchableOpacity style={styles.actionButton} onPress={handleScanPlate}>
-              <Camera size={24} color="#3B82F6" />
-              <Text style={styles.actionButtonText}>Scan License Plate</Text>
+            <TouchableOpacity style={[styles.actionButton, styles.emphasisButton]} onPress={handleScanPlate}>
+              <Scan size={24} color="#FFFFFF" />
+              <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>Start Scanning</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton} onPress={handleScanVehicle}>
-              <Car size={24} color="#10B981" />
-              <Text style={styles.actionButtonText}>Scan Vehicle</Text>
-            </TouchableOpacity>
+            {isLandlord && (
+              <TouchableOpacity style={styles.actionButton} onPress={handleScanVehicle}>
+                <Car size={24} color="#10B981" />
+                <Text style={styles.actionButtonText}>Scan Vehicle</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>My Vehicles ({vehicles.length})</Text>
-          {vehicles.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Car size={48} color="#9CA3AF" />
-              <Text style={styles.emptyTitle}>No Vehicles Registered</Text>
-              <Text style={styles.emptySubtitle}>
-                Scan your license plate or vehicle to get started
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.vehiclesList}>
-              {vehicles.map((vehicle) => (
-                <TouchableOpacity
-                  key={vehicle.id}
-                  style={styles.vehicleCard}
-                  onPress={() => handleVehiclePress(vehicle)}
-                >
-                  <View style={styles.vehicleHeader}>
-                    <View style={styles.vehicleInfo}>
-                      <Text style={styles.plateNumber}>{vehicle.plateNumber}</Text>
-                      <Text style={styles.vehicleDetails}>
-                        {vehicle.make} {vehicle.model} • {vehicle.color}
-                      </Text>
-                    </View>
-                    <View style={[
-                      styles.statusBadge,
-                      { backgroundColor: getStatusColor(vehicle.status) + '20' }
-                    ]}>
-                      <Text style={[
-                        styles.statusText,
-                        { color: getStatusColor(vehicle.status) }
+        {isLandlord && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Registered Vehicles ({vehicles.length})</Text>
+            {vehicles.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Car size={48} color="#9CA3AF" />
+                <Text style={styles.emptyTitle}>No Vehicles Registered</Text>
+                <Text style={styles.emptySubtitle}>
+                  Use the scanner to register tenants' vehicles
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.vehiclesList}>
+                {vehicles.map((vehicle) => (
+                  <TouchableOpacity
+                    key={vehicle.id}
+                    style={styles.vehicleCard}
+                    onPress={() => handleVehiclePress(vehicle)}
+                  >
+                    <View style={styles.vehicleHeader}>
+                      <View style={styles.vehicleInfo}>
+                        <Text style={styles.plateNumber}>{vehicle.plateNumber}</Text>
+                        <Text style={styles.vehicleDetails}>
+                          {vehicle.make} {vehicle.model} • {vehicle.color}
+                        </Text>
+                      </View>
+                      <View style={[
+                        styles.statusBadge,
+                        { backgroundColor: getStatusColor(vehicle.status) + '20' }
                       ]}>
-                        {getStatusText(vehicle.status)}
-                      </Text>
+                        <Text style={[
+                          styles.statusText,
+                          { color: getStatusColor(vehicle.status) }
+                        ]}>
+                          {getStatusText(vehicle.status)}
+                        </Text>
+                      </View>
                     </View>
-                  </View>
 
-                  <View style={styles.vehicleFooter}>
-                    <View style={styles.vehicleStat}>
-                      <Clock size={16} color="#6B7280" />
-                      <Text style={styles.vehicleStatText}>
-                        Last seen {formatTime(vehicle.lastSeen)}
-                      </Text>
+                    <View style={styles.vehicleFooter}>
+                      <View style={styles.vehicleStat}>
+                        <Clock size={16} color="#6B7280" />
+                        <Text style={styles.vehicleStatText}>
+                          Last seen {formatTime(vehicle.lastSeen)}
+                        </Text>
+                      </View>
+                      <View style={styles.vehicleStat}>
+                        <MapPin size={16} color="#6B7280" />
+                        <Text style={styles.vehicleStatText}>
+                          Registered {formatDate(vehicle.registeredAt)}
+                        </Text>
+                      </View>
                     </View>
-                    <View style={styles.vehicleStat}>
-                      <MapPin size={16} color="#6B7280" />
-                      <Text style={styles.vehicleStatText}>
-                        Registered {formatDate(vehicle.registeredAt)}
-                      </Text>
+
+                    <View style={styles.vehicleActions}>
+                      <TouchableOpacity style={styles.actionButtonSmall}>
+                        <Text style={styles.actionButtonSmallText}>View Details</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={[styles.actionButtonSmall, styles.removeButton]}
+                        onPress={() => handleRemoveVehicle(vehicle.id)}
+                      >
+                        <Text style={[styles.actionButtonSmallText, styles.removeButtonText]}>
+                          Remove
+                        </Text>
+                      </TouchableOpacity>
                     </View>
-                  </View>
-
-                  <View style={styles.vehicleActions}>
-                    <TouchableOpacity style={styles.actionButtonSmall}>
-                      <Text style={styles.actionButtonSmallText}>View Details</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      style={[styles.actionButtonSmall, styles.removeButton]}
-                      onPress={() => handleRemoveVehicle(vehicle.id)}
-                    >
-                      <Text style={[styles.actionButtonSmallText, styles.removeButtonText]}>
-                        Remove
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Parking History</Text>
-          <View style={styles.historyCard}>
-            <Text style={styles.historyTitle}>Recent Activity</Text>
-            <View style={styles.historyItem}>
-              <CheckCircle size={20} color="#10B981" />
-              <View style={styles.historyContent}>
-                <Text style={styles.historyText}>Vehicle KCA 123A entered parking</Text>
-                <Text style={styles.historyTime}>2 hours ago</Text>
+                  </TouchableOpacity>
+                ))}
               </View>
-            </View>
-            <View style={styles.historyItem}>
-              <CheckCircle size={20} color="#10B981" />
-              <View style={styles.historyContent}>
-                <Text style={styles.historyText}>Vehicle KCB 456B exited parking</Text>
-                <Text style={styles.historyTime}>5 hours ago</Text>
+            )}
+          </View>
+        )}
+
+        {isLandlord && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Parking History</Text>
+            <View style={styles.historyCard}>
+              <Text style={styles.historyTitle}>Recent Activity</Text>
+              <View style={styles.historyItem}>
+                <CheckCircle size={20} color="#10B981" />
+                <View style={styles.historyContent}>
+                  <Text style={styles.historyText}>Vehicle KCA 123A entered parking</Text>
+                  <Text style={styles.historyTime}>2 hours ago</Text>
+                </View>
+              </View>
+              <View style={styles.historyItem}>
+                <CheckCircle size={20} color="#10B981" />
+                <View style={styles.historyContent}>
+                  <Text style={styles.historyText}>Vehicle KCB 456B exited parking</Text>
+                  <Text style={styles.historyTime}>5 hours ago</Text>
+                </View>
               </View>
             </View>
           </View>
-        </View>
+        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>How It Works</Text>
           <View style={styles.infoCard}>
-            <Text style={styles.infoTitle}>Automatic Vehicle Recognition</Text>
+            <Text style={styles.infoTitle}>Role-Based SmartPark</Text>
             <Text style={styles.infoText}>
-              SmartPark uses advanced OCR technology to automatically recognize your vehicle's license plate and register it in the system. This enables seamless parking management and access control.
+              Landlords register and manage vehicles. Tenants use the scanner for access.
             </Text>
             <View style={styles.infoFeatures}>
+              <Text style={styles.infoFeature}>• Landlords: Register tenants' vehicles</Text>
+              <Text style={styles.infoFeature}>• Tenants: Scan to enter/exit</Text>
               <Text style={styles.infoFeature}>• Automatic plate recognition</Text>
-              <Text style={styles.infoFeature}>• Vehicle type detection</Text>
-              <Text style={styles.infoFeature}>• Real-time tracking</Text>
-              <Text style={styles.infoFeature}>• Secure data storage</Text>
+              <Text style={styles.infoFeature}>• Secure logs and history</Text>
             </View>
           </View>
         </View>
       </ScrollView>
+
+      {/* Floating scan button visible to all */}
+      <TouchableOpacity style={styles.fab} onPress={handleScanPlate}>
+        <Scan size={24} color="#FFFFFF" />
+      </TouchableOpacity>
 
       {showScanner && (
         <OCRScanner
@@ -411,6 +424,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
+  },
+  emphasisButton: {
+    backgroundColor: '#3B82F6',
+    borderColor: '#3B82F6',
   },
   actionButtonText: {
     fontSize: 14,
@@ -571,5 +588,21 @@ const styles = StyleSheet.create({
   infoFeature: {
     fontSize: 14,
     color: '#374151',
+  },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#3B82F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
   },
 });

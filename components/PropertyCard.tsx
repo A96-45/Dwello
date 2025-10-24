@@ -185,6 +185,18 @@ export default function PropertyCard({
     extrapolate: 'clamp',
   });
 
+  const likeOpacity = pan.x.interpolate({
+    inputRange: [0, SCREEN_WIDTH / 4],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+
+  const nopeOpacity = pan.x.interpolate({
+    inputRange: [-SCREEN_WIDTH / 4, 0],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+
   const cardStyle = isFirst
     ? {
         transform: [
@@ -203,6 +215,14 @@ export default function PropertyCard({
     >
       <TouchableOpacity activeOpacity={0.95} onPress={handlePress} style={styles.cardContent}>
         <Image source={{ uri: property.images[0] }} style={styles.image} resizeMode="cover" />
+
+        {/* Swipe labels */}
+        <Animated.View style={[styles.labelLike, { opacity: likeOpacity }]}> 
+          <Text style={styles.labelTextLike}>LIKE</Text>
+        </Animated.View>
+        <Animated.View style={[styles.labelNope, { opacity: nopeOpacity }]}> 
+          <Text style={styles.labelTextNope}>NOPE</Text>
+        </Animated.View>
         
         <View style={styles.gradient}>
           <View style={styles.topOverlay}>
@@ -339,6 +359,42 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'space-between',
     backgroundColor: 'rgba(0,0,0,0.15)',
+  },
+  labelLike: {
+    position: 'absolute' as const,
+    top: 24,
+    left: 24,
+    transform: [{ rotate: '-15deg' }],
+    borderWidth: 4,
+    borderColor: '#10B981',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(16,185,129,0.1)',
+  },
+  labelNope: {
+    position: 'absolute' as const,
+    top: 24,
+    right: 24,
+    transform: [{ rotate: '15deg' }],
+    borderWidth: 4,
+    borderColor: '#EF4444',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(239,68,68,0.1)',
+  },
+  labelTextLike: {
+    color: '#10B981',
+    fontSize: 18,
+    fontWeight: '900' as const,
+    letterSpacing: 2,
+  },
+  labelTextNope: {
+    color: '#EF4444',
+    fontSize: 18,
+    fontWeight: '900' as const,
+    letterSpacing: 2,
   },
   topOverlay: {
     flexDirection: 'row',

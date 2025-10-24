@@ -1,27 +1,110 @@
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  TextInput,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, Users, RefreshCw, Star } from 'lucide-react-native';
+import { Home, Users, RefreshCw, Star, DollarSign, Phone, Shield, Clock, CheckCircle } from 'lucide-react-native';
 import { useApp } from '@/contexts/AppContext';
+import { MOCK_PROPERTIES } from '@/mocks/properties';
+import { MOCK_PAYMENT_SETTINGS, MOCK_PAYMENTS } from '@/mocks/payments';
+import type { Property, Payment } from '@/types';
 
 export default function PostScreen() {
   const insets = useSafeAreaInsets();
   const { isLandlord, isTenant } = useApp();
 
+  // Tenant Payment state
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string>(MOCK_PROPERTIES[0]?.id ?? '');
+  const [mpesaPhone, setMpesaPhone] = useState<string>('0712345678');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [lastPayment, setLastPayment] = useState<Payment | null>(null);
+
+  const selectedProperty: Property | undefined = useMemo(
+    () => MOCK_PROPERTIES.find(p => p.id === selectedPropertyId),
+    [selectedPropertyId]
+  );
+
+  const paymentSettings = useMemo(() => {
+    if (!selectedProperty) return undefined;
+    return (
+      MOCK_PAYMENT_SETTINGS.find(s => s.propertyId === selectedProperty.id) ||
+      MOCK_PAYMENT_SETTINGS.find(s => s.landlordId === selectedProperty.landlord.id)
+    );
+  }, [selectedProperty]);
+
+  const amountDue = useMemo(() => {
+    if (!selectedProperty) return 0;
+    const base = selectedProperty.price;
+    const service = selectedProperty.serviceCharge || 0;
+    return base + service;
+  }, [selectedProperty]);
+
+  useEffect(() => {
+    // Preload a previous payment for this property if available (mock)
+    if (!selectedProperty) return;
+    const existing = MOCK_PAYMENTS.find(p => p.propertyId === selectedProperty.id);
+    setLastPayment(existing || null);
+  }, [selectedProperty]);
+
+  const formatCurrency = (amount: number) => `KES ${amount.toLocaleString()}`;
+
+  const initiateMpesaPayment = useCallback(async () => {
+    if (!selectedProperty || !paymentSettings) {
+      Alert.alert('Unavailable', 'Missing payment settings for this property.');
+      return;
+    }
+    if (!/^0\d{9}$/.test(mpesaPhone)) {
+      Alert.alert('Invalid Number', 'Enter a valid Kenyan phone number e.g. 0712345678');
+      return;
+    }
+    try {
+      setIsProcessing(true);
+      // Simulate STK push delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const ref = `MPESA-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+      const payment: Payment = {
+        id: `pmt_${Date.now()}`,
+        propertyId: selectedProperty.id,
+        tenantId: 'tenant_1',
+        landlordId: selectedProperty.landlord.id,
+        amount: amountDue,
+        type: 'rent',
+        status: 'completed',
+        dueDate: new Date(new Date().getFullYear(), new Date().getMonth(), paymentSettings.dueDay).toISOString(),
+        paidDate: new Date().toISOString(),
+        method: 'mpesa',
+        reference: ref,
+      };
+      setLastPayment(payment);
+      Alert.alert('Payment Successful', `Reference: ${ref}`);
+    } catch (e) {
+      Alert.alert('Payment Failed', 'Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [selectedProperty, paymentSettings, mpesaPhone, amountDue]);
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Post</Text>
-        <Text style={styles.subtitle}>
-          {isLandlord ? 'List your properties' : 'Create posts & find roommates'}
-        </Text>
-      </View>
+      {isTenant ? (
+        <View style={styles.header}>
+          <Text style={styles.title}>Pay Rent</Text>
+          <Text style={styles.subtitle}>Secure M-Pesa payments synced with landlord details</Text>
+        </View>
+      ) : (
+        <View style={styles.header}>
+          <Text style={styles.title}>Post</Text>
+          <Text style={styles.subtitle}>
+            {isLandlord ? 'List your properties' : 'Create posts & find roommates'}
+          </Text>
+        </View>
+      )}
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {isLandlord && (
@@ -70,52 +153,109 @@ export default function PostScreen() {
           </>
         )}
 
-        {isTenant && (
+        {isTenant && selectedProperty && (
           <>
-            <TouchableOpacity style={styles.actionCard}>
-              <View style={styles.iconContainer}>
-                <Users size={32} color="#3B82F6" />
+            <View style={styles.payCard}>
+              <View style={styles.payHeader}>
+                <DollarSign size={20} color="#10B981" />
+                <Text style={styles.payHeaderText}>This Month&apos;s Rent</Text>
               </View>
-              <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>Find Roommate</Text>
-                <Text style={styles.cardDescription}>
-                  Post an ad to find someone to share your apartment
+              <Text style={styles.payAmount}>{formatCurrency(amountDue)}</Text>
+              <View style={styles.payMetaRow}>
+                <Clock size={16} color="#6B7280" />
+                <Text style={styles.payMetaText}>
+                  Due on {paymentSettings ? `${paymentSettings.dueDay}` : '--'}
                 </Text>
               </View>
-            </TouchableOpacity>
 
-            <TouchableOpacity style={styles.actionCard}>
-              <View style={styles.iconContainer}>
-                <RefreshCw size={32} color="#10B981" />
+              <View style={styles.selector}>
+                <Text style={styles.selectorLabel}>Property</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                  {MOCK_PROPERTIES.map(p => (
+                    <TouchableOpacity
+                      key={p.id}
+                      style={[styles.propertyChip, selectedPropertyId === p.id && styles.propertyChipActive]}
+                      onPress={() => setSelectedPropertyId(p.id)}
+                    >
+                      <Text style={[styles.propertyChipText, selectedPropertyId === p.id && styles.propertyChipTextActive]}>
+                        {p.title}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
               </View>
-              <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>Sublet My Place</Text>
-                <Text style={styles.cardDescription}>
-                  Temporarily rent out your apartment while you&apos;re away
-                </Text>
-              </View>
-            </TouchableOpacity>
 
-            <TouchableOpacity style={styles.actionCard}>
-              <View style={styles.iconContainer}>
-                <Star size={32} color="#F59E0B" />
+              {paymentSettings ? (
+                <View style={styles.settingsCard}>
+                  <View style={styles.settingsRow}>
+                    <Shield size={18} color="#3B82F6" />
+                    <Text style={styles.settingsTitle}>Landlord Payment Details</Text>
+                  </View>
+                  <View style={styles.settingsGrid}>
+                    <View style={styles.settingsItem}>
+                      <Text style={styles.settingsLabel}>Paybill / Till</Text>
+                      <Text style={styles.settingsValue}>{paymentSettings.mpesaNumber}</Text>
+                    </View>
+                    <View style={styles.settingsItem}>
+                      <Text style={styles.settingsLabel}>Account</Text>
+                      <Text style={styles.settingsValue}>{paymentSettings.accountNumber}</Text>
+                    </View>
+                    <View style={styles.settingsItem}>
+                      <Text style={styles.settingsLabel}>Account Name</Text>
+                      <Text style={styles.settingsValue}>{paymentSettings.accountName}</Text>
+                    </View>
+                    {paymentSettings.bankName && (
+                      <View style={styles.settingsItem}>
+                        <Text style={styles.settingsLabel}>Bank</Text>
+                        <Text style={styles.settingsValue}>{paymentSettings.bankName}</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.settingsCard}>
+                  <Text style={styles.settingsTitle}>No payment settings found for this property.</Text>
+                </View>
+              )}
+
+              <View style={styles.inputRow}>
+                <View style={styles.inputIcon}><Phone size={18} color="#6B7280" /></View>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="phone-pad"
+                  value={mpesaPhone}
+                  onChangeText={setMpesaPhone}
+                  placeholder="M-Pesa phone number"
+                  placeholderTextColor="#9CA3AF"
+                />
               </View>
-              <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>Write Review</Text>
-                <Text style={styles.cardDescription}>
-                  Share your experience with your landlord or property
-                </Text>
-              </View>
-            </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.payButton, isProcessing && styles.payButtonDisabled]}
+                onPress={initiateMpesaPayment}
+                disabled={isProcessing}
+              >
+                <Text style={styles.payButtonText}>{isProcessing ? 'Processing…' : 'Pay with M-Pesa'}</Text>
+              </TouchableOpacity>
+
+              {lastPayment && (
+                <View style={styles.lastPayment}>
+                  <CheckCircle size={18} color="#10B981" />
+                  <Text style={styles.lastPaymentText}>
+                    Last payment {formatCurrency(lastPayment.amount)} • Ref {lastPayment.reference}
+                  </Text>
+                </View>
+              )}
+            </View>
           </>
         )}
 
         <View style={styles.infoCard}>
           <Text style={styles.infoTitle}>💡 Pro Tip</Text>
           <Text style={styles.infoText}>
-            {isLandlord
+            {isLandlord && !isTenant
               ? 'Properties with at least 5 photos and detailed descriptions get 3x more inquiries!'
-              : 'Include clear photos and detailed descriptions to attract the right roommate faster!'}
+              : 'Pay early to avoid late fees and ensure uninterrupted tenancy.'}
           </Text>
         </View>
 
@@ -151,6 +291,39 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
+  payCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 16,
+    gap: 12,
+  },
+  payHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  payHeaderText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  payAmount: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  payMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  payMetaText: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
   actionCard: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
@@ -182,6 +355,116 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     lineHeight: 20,
+  },
+  selector: {
+    gap: 8,
+  },
+  selectorLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  propertyChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  propertyChipActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+  },
+  propertyChipText: {
+    fontSize: 12,
+    color: '#374151',
+    fontWeight: '600',
+  },
+  propertyChipTextActive: {
+    color: '#1D4ED8',
+  },
+  settingsCard: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    padding: 12,
+    gap: 8,
+  },
+  settingsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  settingsTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  settingsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  settingsItem: {
+    minWidth: '45%',
+  },
+  settingsLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  settingsValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+  },
+  inputIcon: {
+    paddingHorizontal: 12,
+  },
+  input: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    fontSize: 16,
+    color: '#111827',
+  },
+  payButton: {
+    backgroundColor: '#10B981',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  payButtonDisabled: {
+    backgroundColor: '#6EE7B7',
+  },
+  payButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  lastPayment: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#DCFCE7',
+    padding: 10,
+    borderRadius: 8,
+  },
+  lastPaymentText: {
+    fontSize: 12,
+    color: '#14532D',
+    fontWeight: '600',
   },
   statsCard: {
     backgroundColor: '#FFFFFF',
