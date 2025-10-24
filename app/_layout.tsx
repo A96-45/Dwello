@@ -1,13 +1,10 @@
-import "@rork/polyfills";
-import { BundleInspector } from '@rork/inspector';
-import { RorkSafeInsets } from '@rork/safe-insets';
-import { RorkErrorBoundary } from '@rork/rork-error-boundary';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AppProvider, useApp } from "@/contexts/AppContext";
+import { NotificationProvider } from "@/contexts/NotificationContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -43,10 +40,12 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <AppProvider>
-        <GestureHandlerRootView style={{ flex: 1 }}>
-          <InitialRouteHandler />
-          <BundleInspector><RorkSafeInsets><RorkErrorBoundary><RootLayoutNav /></RorkErrorBoundary></RorkSafeInsets></BundleInspector>
-        </GestureHandlerRootView>
+        <NotificationProvider>
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <InitialRouteHandler />
+            <RootLayoutNav />
+          </GestureHandlerRootView>
+        </NotificationProvider>
       </AppProvider>
     </QueryClientProvider>
   );

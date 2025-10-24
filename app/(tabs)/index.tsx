@@ -8,10 +8,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { X } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { X, Search, Bell, Map, Calendar } from 'lucide-react-native';
 import PropertyCard from '@/components/PropertyCard';
 import FilterBottomSheet from '@/components/FilterBottomSheet';
 import { useApp } from '@/contexts/AppContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 import { MOCK_PROPERTIES } from '@/mocks/properties';
 import type { FilterOptions } from '@/types';
 
@@ -30,7 +32,8 @@ const FILTER_CHIPS = [
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { toggleSaveProperty, isSaved, filters, updateFilters } = useApp();
+  const { toggleSaveProperty, isSaved, filters, updateFilters, isLandlord } = useApp();
+  const { unreadCount } = useNotifications();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [viewedProperties, setViewedProperties] = useState<string[]>([]);
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
@@ -107,6 +110,7 @@ export default function HomeScreen() {
   }, [currentProperty, toggleSaveProperty]);
 
   const handleFilterChipPress = (chipId: typeof FILTER_CHIPS[number]['id']) => {
+    Haptics.selectionAsync();
     setActiveFilterType(chipId);
     setFilterSheetVisible(true);
   };
@@ -118,6 +122,7 @@ export default function HomeScreen() {
   }, [updateFilters]);
 
   const handleClearFilters = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await updateFilters({});
     setCurrentIndex(0);
     setViewedProperties([]);
@@ -160,11 +165,97 @@ export default function HomeScreen() {
     v !== undefined && v !== null && (Array.isArray(v) ? v.length > 0 : true)
   ).length;
 
+  // Show landlord dashboard if user is a landlord
+  if (isLandlord) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <Text style={styles.logo}>Dwello</Text>
+          <View style={styles.headerRight}>
+            <TouchableOpacity 
+              style={styles.dashboardButton}
+              onPress={() => {
+                Haptics.selectionAsync();
+                router.push('/landlord-dashboard');
+              }}
+            >
+              <Text style={styles.dashboardButtonText}>Dashboard</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.searchButton}
+              onPress={() => {
+                Haptics.selectionAsync();
+                router.push('/search');
+              }}
+            >
+              <Search size={24} color="#3B82F6" />
+            </TouchableOpacity>
+          </View>
+        </View>
+        <View style={styles.landlordContent}>
+          <Text style={styles.landlordTitle}>Welcome back!</Text>
+          <Text style={styles.landlordSubtitle}>Manage your properties and track performance</Text>
+          <TouchableOpacity 
+            style={styles.dashboardCard}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push('/landlord-dashboard');
+            }}
+          >
+            <Text style={styles.dashboardCardTitle}>View Full Dashboard</Text>
+            <Text style={styles.dashboardCardSubtitle}>Analytics, properties, and inquiries</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Text style={styles.logo}>Dwello</Text>
         <View style={styles.headerRight}>
+          <TouchableOpacity 
+            style={styles.notificationButton}
+            onPress={() => {
+              Haptics.selectionAsync();
+              router.push('/notifications');
+            }}
+          >
+            <Bell size={24} color="#3B82F6" />
+            {unreadCount > 0 && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>{unreadCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.mapButton}
+            onPress={() => {
+              Haptics.selectionAsync();
+              router.push('/map');
+            }}
+          >
+            <Map size={24} color="#3B82F6" />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.calendarButton}
+            onPress={() => {
+              Haptics.selectionAsync();
+              router.push('/calendar');
+            }}
+          >
+            <Calendar size={24} color="#3B82F6" />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.searchButton}
+            onPress={() => {
+              Haptics.selectionAsync();
+              router.push('/search');
+            }}
+          >
+            <Search size={24} color="#3B82F6" />
+          </TouchableOpacity>
           {activeFiltersCount > 0 && (
             <View style={styles.filterBadge}>
               <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
@@ -288,7 +379,92 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   headerRight: {
-    position: 'relative' as const,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  notificationButton: {
+    position: 'relative',
+    padding: 8,
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: '#EF4444',
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notificationBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  mapButton: {
+    padding: 8,
+  },
+  calendarButton: {
+    padding: 8,
+  },
+  searchButton: {
+    padding: 8,
+  },
+  dashboardButton: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  dashboardButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#3B82F6',
+  },
+  landlordContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  landlordTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  landlordSubtitle: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 32,
+  },
+  dashboardCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 24,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+    alignItems: 'center',
+  },
+  dashboardCardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  dashboardCardSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
   },
   filterBadge: {
     backgroundColor: '#EF4444',

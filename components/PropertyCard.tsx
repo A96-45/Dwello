@@ -9,6 +9,7 @@ import {
   Animated,
   PanResponder,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { Heart, MoreVertical, MapPin, Bed, Bath, Square, Car, Wifi, Shield } from 'lucide-react-native';
 import type { Property } from '@/types';
 
@@ -112,6 +113,7 @@ export default function PropertyCard({
         const absY = Math.abs(gestureState.dy);
 
         if (absX > SWIPE_THRESHOLD || absY > SWIPE_THRESHOLD) {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           if (absX > absY) {
             if (gestureState.dx > 0) {
               animateOut('right', onSwipeRight);
@@ -138,8 +140,10 @@ export default function PropertyCard({
     const DOUBLE_TAP_DELAY = 300;
     
     if (now - lastTap.current < DOUBLE_TAP_DELAY) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       onDoubleTap?.();
     } else {
+      Haptics.selectionAsync();
       setTimeout(() => {
         if (Date.now() - lastTap.current >= DOUBLE_TAP_DELAY) {
           onPress?.();
@@ -209,6 +213,7 @@ export default function PropertyCard({
             <View style={styles.topActions}>
               <TouchableOpacity style={styles.actionButton} onPress={(e) => {
                 e.stopPropagation();
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 onToggleSave?.();
               }}>
                 <Heart

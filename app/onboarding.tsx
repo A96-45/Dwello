@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
 import { Home, Building2, Users } from 'lucide-react-native';
 import { useApp } from '@/contexts/AppContext';
 import type { UserRole } from '@/types';
@@ -20,6 +21,7 @@ export default function OnboardingScreen() {
 
   const handleContinue = async () => {
     if (selectedRole) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await switchRole(selectedRole);
       await completeOnboarding();
       router.replace('/(tabs)');
@@ -75,7 +77,10 @@ export default function OnboardingScreen() {
                     backgroundColor: `${role.color}10`,
                   },
                 ]}
-                onPress={() => setSelectedRole(role.value)}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setSelectedRole(role.value);
+                }}
                 activeOpacity={0.7}
               >
                 <View style={[styles.iconContainer, { backgroundColor: role.color }]}>

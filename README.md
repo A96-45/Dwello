@@ -1,59 +1,48 @@
-# Welcome to your Rork app
+# Dwello - Rental Platform
 
 ## Project info
 
-This is a native cross-platform mobile app created with [Rork](https://rork.com)
+This is a native cross-platform mobile app for property rental management.
 
 **Platform**: Native iOS & Android app, exportable to web
 **Framework**: Expo Router + React Native
 
-## How can I edit this code?
+## How to run this app
 
-There are several ways of editing your native mobile application.
+### **Prerequisites**
 
-### **Use Rork**
+Make sure you have Node.js and npm installed:
+- [Install Node.js](https://nodejs.org/)
+- [Install Expo CLI](https://docs.expo.dev/get-started/installation/)
 
-Simply visit [rork.com](https://rork.com) and prompt to build your app with AI.
-
-Changes made via Rork will be committed automatically to this GitHub repo.
-
-Whenever you make a change in your local code editor and push it to GitHub, it will be also reflected in Rork.
-
-### **Use your preferred code editor**
-
-If you want to work locally using your own code editor, you can clone this repo and push changes. Pushed changes will also be reflected in Rork.
-
-If you are new to coding and unsure which editor to use, we recommend Cursor. If you're familiar with terminals, try Claude Code.
-
-The only requirement is having Node.js & Bun installed - [install Node.js with nvm](https://github.com/nvm-sh/nvm) and [install Bun](https://bun.sh/docs/installation)
-
-Follow these steps:
+### **Getting Started**
 
 ```bash
-# Step 1: Clone the repository using the project's Git URL.
+# Step 1: Clone the repository
 git clone <YOUR_GIT_URL>
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Step 2: Navigate to the project directory
+cd dwello-rental-platform
 
-# Step 3: Install the necessary dependencies.
-bun i
+# Step 3: Install dependencies
+npm install
 
-# Step 4: Start the instant web preview of your Rork app in your browser, with auto-reloading of your changes
-bun run start-web
+# Step 4: Start the development server
+npm start
 
-# Step 5: Start iOS preview
-# Option A (recommended):
-bun run start  # then press "i" in the terminal to open iOS Simulator
-# Option B (if supported by your environment):
-bun run start -- --ios
+# Step 5: Run on your device
+# - Install Expo Go app on your phone
+# - Scan the QR code from the terminal
+# - Or press 'i' for iOS simulator, 'a' for Android emulator
 ```
 
-### **Edit a file directly in GitHub**
+### **Available Scripts**
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+- `npm start` - Start the Expo development server
+- `npm run start-web` - Start web version
+- `npm run start-tunnel` - Start with tunnel for remote access
+- `npm run android` - Start Android emulator
+- `npm run ios` - Start iOS simulator
 
 ## What technologies are used for this project?
 
@@ -70,17 +59,17 @@ This project is built with the most popular native mobile cross-platform technic
 
 ### **On your phone (Recommended)**
 
-1. **iOS**: Download the [Rork app from the App Store](https://apps.apple.com/app/rork) or [Expo Go](https://apps.apple.com/app/expo-go/id982107779)
+1. **iOS**: Download [Expo Go](https://apps.apple.com/app/expo-go/id982107779)
 2. **Android**: Download the [Expo Go app from Google Play](https://play.google.com/store/apps/details?id=host.exp.exponent)
-3. Run `bun run start` and scan the QR code from your development server
+3. Run `npm start` and scan the QR code from your development server
 
 ### **In your browser**
 
-Run `bun start-web` to test in a web browser. Note: The browser preview is great for quick testing, but some native features may not be available.
+Run `npm run start-web` to test in a web browser. Note: The browser preview is great for quick testing, but some native features may not be available.
 
 ### **iOS Simulator / Android Emulator**
 
-You can test Rork apps in Expo Go or Rork iOS app. You don't need XCode or Android Studio for most features.
+You can test the app in Expo Go. You don't need XCode or Android Studio for most features.
 
 **When do you need Custom Development Builds?**
 
@@ -95,10 +84,10 @@ If you have XCode (iOS) or Android Studio installed:
 
 ```bash
 # iOS Simulator
-bun run start -- --ios
+npm run ios
 
 # Android Emulator
-bun run start -- --android
+npm run android
 ```
 
 ## How can I deploy this project?
@@ -108,7 +97,7 @@ bun run start -- --android
 1. **Install EAS CLI**:
 
    ```bash
-   bun i -g @expo/eas-cli
+   npm install -g @expo/eas-cli
    ```
 
 2. **Configure your project**:
@@ -211,7 +200,7 @@ For advanced native features, you'll need to create a Custom Development Build i
 
 ```bash
 # Install EAS CLI
-bun i -g @expo/eas-cli
+npm install -g @expo/eas-cli
 
 # Configure your project for development builds
 eas build:configure
@@ -221,7 +210,7 @@ eas build --profile development --platform ios
 eas build --profile development --platform android
 
 # Install the development build on your device and start developing
-bun start --dev-client
+npx expo start --dev-client
 ```
 
 **Learn more:**
@@ -296,23 +285,23 @@ For mobile apps, you'll configure your app's deep linking scheme in `app.json`.
 ### **App not loading on device?**
 
 1. Make sure your phone and computer are on the same WiFi network
-2. Try using tunnel mode: `bun start -- --tunnel`
+2. Try using tunnel mode: `npm run start-tunnel`
 3. Check if your firewall is blocking the connection
 
 ### **Build failing?**
 
-1. Clear your cache: `bunx expo start --clear`
-2. Delete `node_modules` and reinstall: `rm -rf node_modules && bun install`
+1. Clear your cache: `npx expo start --clear`
+2. Delete `node_modules` and reinstall: `rm -rf node_modules && npm install`
 3. Check [Expo's troubleshooting guide](https://docs.expo.dev/troubleshooting/build-errors/)
 
 ### **Need help with native features?**
 
 - Check [Expo's documentation](https://docs.expo.dev/) for native APIs
 - Browse [React Native's documentation](https://reactnative.dev/docs/getting-started) for core components
-- Visit [Rork's FAQ](https://rork.com/faq) for platform-specific questions
+- Check the [Expo documentation](https://docs.expo.dev/) for platform-specific questions
 
-## About Rork
+## About Dwello
 
-Rork builds fully native mobile apps using React Native and Expo - the same technology stack used by Discord, Shopify, Coinbase, Instagram, and nearly 30% of the top 100 apps on the App Store.
+Dwello is a comprehensive rental platform built with React Native and Expo - the same technology stack used by Discord, Shopify, Coinbase, Instagram, and nearly 30% of the top 100 apps on the App Store.
 
-Your Rork app is production-ready and can be published to both the App Store and Google Play Store. You can also export your app to run on the web, making it truly cross-platform.
+This app is production-ready and can be published to both the App Store and Google Play Store. You can also export your app to run on the web, making it truly cross-platform.

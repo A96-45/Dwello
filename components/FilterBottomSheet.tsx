@@ -8,6 +8,7 @@ import {
   ScrollView,
   Dimensions,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { X } from 'lucide-react-native';
 import type { FilterOptions, PropertyType } from '@/types';
 
@@ -84,11 +85,13 @@ export default function FilterBottomSheet({
   }, [currentFilters, visible]);
 
   const handleApply = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     onApplyFilters(localFilters);
     onClose();
   }, [localFilters, onApplyFilters, onClose]);
 
   const togglePropertyType = (type: PropertyType) => {
+    Haptics.selectionAsync();
     setLocalFilters(prev => {
       const current = prev.propertyTypes || [];
       const updated = current.includes(type)
@@ -99,6 +102,7 @@ export default function FilterBottomSheet({
   };
 
   const setPriceRange = (min: number, max: number) => {
+    Haptics.selectionAsync();
     setLocalFilters(prev => ({
       ...prev,
       priceMin: min,
@@ -107,6 +111,7 @@ export default function FilterBottomSheet({
   };
 
   const toggleBedroom = (count: number) => {
+    Haptics.selectionAsync();
     setLocalFilters(prev => {
       const current = prev.bedrooms || [];
       const updated = current.includes(count)
@@ -117,6 +122,7 @@ export default function FilterBottomSheet({
   };
 
   const toggleAmenity = (amenity: string) => {
+    Haptics.selectionAsync();
     setLocalFilters(prev => {
       const current = prev.amenities || [];
       const updated = current.includes(amenity)
@@ -127,6 +133,7 @@ export default function FilterBottomSheet({
   };
 
   const toggleFurnished = (value: string) => {
+    Haptics.selectionAsync();
     setLocalFilters(prev => {
       const current = prev.furnished || [];
       const updated = current.includes(value)

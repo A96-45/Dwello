@@ -21,9 +21,11 @@ import {
   Building2,
 } from 'lucide-react-native';
 import { useApp } from '@/contexts/AppContext';
+import { useRouter } from 'expo-router';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { userRole, switchRole, savedProperties, isLandlord, isTenant } = useApp();
 
   const handleRoleSwitch = async () => {
@@ -155,7 +157,10 @@ export default function ProfileScreen() {
             </View>
             <Text style={styles.menuText}>Edit Profile</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem}>
+          <TouchableOpacity 
+            style={styles.menuItem}
+            onPress={() => router.push('/documents')}
+          >
             <View style={styles.menuIcon}>
               <FileText size={22} color="#6B7280" />
             </View>

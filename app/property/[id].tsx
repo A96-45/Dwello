@@ -12,7 +12,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { 
   ArrowLeft, Heart, Share2, MapPin, Bed, Bath, Square, 
-  Car, Wifi, Shield, Phone, MessageCircle, Calendar
+  Car, Wifi, Shield, Phone, MessageCircle, Calendar, Camera
 } from 'lucide-react-native';
 import { MOCK_PROPERTIES } from '@/mocks/properties';
 import { useApp } from '@/contexts/AppContext';
@@ -121,8 +121,13 @@ export default function PropertyDetailScreen() {
           </View>
 
           <View style={styles.ratingRow}>
-            <Text style={styles.rating}>⭐ {property.rating}</Text>
-            <Text style={styles.reviewCount}>({property.reviewCount} reviews)</Text>
+            <TouchableOpacity 
+              style={styles.ratingContainer}
+              onPress={() => router.push(`/property/${property.id}/reviews`)}
+            >
+              <Text style={styles.rating}>⭐ {property.rating}</Text>
+              <Text style={styles.reviewCount}>({property.reviewCount} reviews)</Text>
+            </TouchableOpacity>
             <Text style={styles.saves}>❤️ {property.saves} saves</Text>
           </View>
 
@@ -260,6 +265,19 @@ export default function PropertyDetailScreen() {
                 </Text>
               </View>
             </View>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.virtualTourSection}>
+            <Text style={styles.sectionTitle}>Virtual Tours</Text>
+            <TouchableOpacity 
+              style={styles.virtualTourButton}
+              onPress={() => router.push(`/property/${property.id}/virtual-tours`)}
+            >
+              <Camera size={20} color="#3B82F6" />
+              <Text style={styles.virtualTourText}>View Virtual Tours</Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.divider} />
@@ -412,6 +430,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     marginBottom: 12,
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   rating: {
     fontSize: 14,
@@ -617,6 +640,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600' as const,
     color: '#059669',
+  },
+  virtualTourSection: {
+    marginBottom: 8,
+  },
+  virtualTourButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  virtualTourText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#3B82F6',
   },
   bottomBar: {
     flexDirection: 'row',
