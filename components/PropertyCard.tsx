@@ -14,7 +14,7 @@ import { Heart, MoreVertical, MapPin, Bed, Bath, Square, Car, Wifi, Shield } fro
 import type { Property } from '@/types';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const SWIPE_THRESHOLD = 80;
+const SWIPE_THRESHOLD = 40;
 
 interface PropertyCardProps {
   property: Property;
