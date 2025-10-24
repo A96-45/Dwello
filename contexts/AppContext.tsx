@@ -1,11 +1,13 @@
 import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import type { User, UserRole, Vehicle, SavedCollection, FilterOptions } from '@/types';
+import type { User, UserRole, Vehicle, SavedCollection, FilterOptions, VerificationLevel } from '@/types';
+import { VerificationService } from '@/services/VerificationService';
 
 const STORAGE_KEYS = {
   USER_ROLE: '@dwello:userRole',
   USER_DATA: '@dwello:userData',
+  VERIFICATION_LEVEL: '@dwello:verificationLevel',
   SAVED_PROPERTIES: '@dwello:savedProperties',
   COLLECTIONS: '@dwello:collections',
   VEHICLES: '@dwello:vehicles',
@@ -16,6 +18,7 @@ const STORAGE_KEYS = {
 export const [AppProvider, useApp] = createContextHook(() => {
   const [userRole, setUserRole] = useState<UserRole>('tenant');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [verificationLevel, setVerificationLevel] = useState<VerificationLevel>('unverified');
   const [savedProperties, setSavedProperties] = useState<string[]>([]);
   const [collections, setCollections] = useState<SavedCollection[]>([
     { id: '1', name: 'Top Picks', properties: [] },
