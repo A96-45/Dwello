@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -20,6 +21,7 @@ import {
   Home,
   Building2,
 } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 import { useApp } from '@/contexts/AppContext';
 import { useRouter } from 'expo-router';
 
@@ -27,10 +29,35 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { userRole, switchRole, savedProperties, isLandlord, isTenant } = useApp();
+  const [isSwitchingRole, setIsSwitchingRole] = React.useState(false);
 
   const handleRoleSwitch = async () => {
-    const newRole = userRole === 'tenant' ? 'landlord' : 'tenant';
-    await switchRole(newRole);
+    if (isSwitchingRole) return; // Prevent multiple taps
+    
+    try {
+      setIsSwitchingRole(true);
+      
+      // Provide haptic feedback
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      
+      const newRole = userRole === 'tenant' ? 'landlord' : 'tenant';
+      await switchRole(newRole);
+      
+      // Small delay to let the context update
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Navigate to appropriate page based on new role
+      // The index tab automatically shows dashboard for landlords and home for tenants
+      router.replace('/(tabs)');
+      
+      // Success haptic feedback
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error('Error switching role:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setIsSwitchingRole(false);
+    }
   };
 
   return (
@@ -56,15 +83,31 @@ export default function ProfileScreen() {
             </View>
           </View>
         </View>
-        <TouchableOpacity onPress={handleRoleSwitch} style={styles.switchButton}>
-          {userRole === 'tenant' ? (
+        <TouchableOpacity 
+          onPress={handleRoleSwitch} 
+          style={[styles.switchButton, isSwitchingRole && styles.switchButtonDisabled]}
+          disabled={isSwitchingRole}
+        >
+          {isSwitchingRole ? (
+            <ActivityIndicator size="small" color="#3B82F6" />
+          ) : userRole === 'tenant' ? (
             <Building2 size={20} color="#3B82F6" />
           ) : (
             <Home size={20} color="#3B82F6" />
           )}
-          <Text style={styles.switchButtonText}>
-            Switch to {userRole === 'tenant' ? 'Landlord' : 'Tenant'}
-          </Text>
+          <View style={styles.switchButtonContent}>
+            <Text style={[styles.switchButtonText, isSwitchingRole && styles.switchButtonTextDisabled]}>
+              {isSwitchingRole 
+                ? 'Switching...' 
+                : `Switch to ${userRole === 'tenant' ? 'Landlord' : 'Tenant'}`
+              }
+            </Text>
+            {!isSwitchingRole && (
+              <Text style={[styles.switchButtonSubtext, isSwitchingRole && styles.switchButtonTextDisabled]}>
+                {userRole === 'tenant' ? 'Go to Dashboard' : 'Go to Home'}
+              </Text>
+            )}
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -277,16 +320,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 12,
     backgroundColor: '#EFF6FF',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  switchButtonContent: {
+    alignItems: 'center',
   },
   switchButtonText: {
     fontSize: 15,
     fontWeight: '600' as const,
     color: '#3B82F6',
+  },
+  switchButtonDisabled: {
+    backgroundColor: '#F3F4F6',
+    opacity: 0.7,
+  },
+  switchButtonTextDisabled: {
+    color: '#9CA3AF',
+  },
+  switchButtonSubtext: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
   },
   content: {
     flex: 1,
