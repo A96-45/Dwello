@@ -93,7 +93,8 @@ export default function SmartParkScreen() {
     setShowScanner(false);
 
     // Check if vehicle already exists
-    const existingVehicle = vehicles.find(v => v.plateNumber === result.plateNumber);
+    const normalized = result.plateNumber.toUpperCase().replace(/\s+/g, ' ').trim();
+    const existingVehicle = vehicles.find(v => v.plateNumber.toUpperCase().replace(/\s+/g, ' ').trim() === normalized);
     
     if (existingVehicle) {
       Alert.alert(
@@ -108,7 +109,7 @@ export default function SmartParkScreen() {
       // Add new vehicle
       const newVehicle: Vehicle = {
         id: Date.now().toString(),
-        plateNumber: result.plateNumber,
+        plateNumber: normalized,
         vehicleType: result.vehicleType || 'Unknown',
         make: result.make || 'Unknown',
         model: result.model || 'Unknown',
@@ -122,7 +123,7 @@ export default function SmartParkScreen() {
       
       Alert.alert(
         'Vehicle Registered',
-        `${result.plateNumber} has been successfully registered.`,
+        `${normalized} has been successfully registered.`,
         [{ text: 'OK', style: 'default' }]
       );
     }

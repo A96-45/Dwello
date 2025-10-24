@@ -39,9 +39,12 @@ export default function OCRScanner({
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [cameraType, setCameraType] = useState<CameraType>('back');
   const [flashMode, setFlashMode] = useState<'off' | 'on' | 'auto'>('off');
+  const [torchEnabled, setTorchEnabled] = useState<boolean>(false);
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<string | null>(null);
   const cameraRef = useRef<CameraView | null>(null);
+  const [hasScanned, setHasScanned] = useState(false);
+  const lastScanTimeRef = useRef<number>(0);
 
   const requestCameraPermission = useCallback(async () => {
     const { status } = await Camera.requestCameraPermissionsAsync();
@@ -77,19 +80,91 @@ export default function OCRScanner({
 
   const toggleFlash = useCallback(() => {
     Haptics.selectionAsync();
-    setFlashMode(current => {
-      switch (current) {
-        case 'off':
-          return 'on';
-        case 'on':
-          return 'auto';
-        case 'auto':
-          return 'off';
-        default:
-          return 'off';
-      }
-    });
+    setTorchEnabled((prev) => !prev);
   }, []);
+
+  const normalizePlate = (raw: string): string | null => {
+    const value = raw
+      .toUpperCase()
+      .replace(/[^A-Z0-9\s-]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // Common patterns (Kenya: KAA 123A), (Generic EU: ABC 123 DE), (Simple: ABC123A)
+    const patterns: RegExp[] = [
+      /^[A-Z]{3}\s?\d{3}[A-Z]$/, // KAA 123A
+      /^[A-Z]{2,3}\s?\d{3,4}\s?[A-Z]{0,2}$/, // ABC 1234 DE
+      /^[A-Z]{3}\d{3}[A-Z]$/ // KAA123A
+    ];
+
+    for (const pattern of patterns) {
+      if (pattern.test(value)) return value.replace(/\s+/g, ' ').trim();
+    }
+
+    return null;
+  };
+
+  const parseBarcodeData = useCallback((data: string) => {
+    // Try JSON first
+    try {
+      const obj = JSON.parse(data);
+      if (obj && typeof obj === 'object') {
+        const maybePlate = obj.plate || obj.plateNumber || obj.license || obj.licensePlate;
+        const normalized = typeof maybePlate === 'string' ? normalizePlate(maybePlate) : null;
+        return {
+          plateNumber: normalized || 'UNKNOWN',
+          confidence: 0.99,
+          vehicleType: obj.vehicleType,
+          make: obj.make,
+          model: obj.model,
+        } as const;
+      }
+    } catch {}
+
+    // Try query string in URL
+    try {
+      const url = new URL(data);
+      const p = url.searchParams.get('plate') || url.searchParams.get('plateNumber');
+      const normalized = p ? normalizePlate(p) : null;
+      if (normalized) {
+        return {
+          plateNumber: normalized,
+          confidence: 0.98,
+        } as const;
+      }
+    } catch {}
+
+    // Fallback to raw text pattern matching
+    const normalized = normalizePlate(data);
+    if (normalized) {
+      return {
+        plateNumber: normalized,
+        confidence: 0.9,
+      } as const;
+    }
+
+    return null;
+  }, []);
+
+  const handleBarcodeScanned = useCallback((event: { data: string; type: string }) => {
+    const now = Date.now();
+    if (hasScanned || now - lastScanTimeRef.current < 1500) return;
+    lastScanTimeRef.current = now;
+
+    const parsed = parseBarcodeData(event.data);
+    if (parsed) {
+      setHasScanned(true);
+      setScanResult(parsed.plateNumber);
+      onScanComplete({
+        plateNumber: parsed.plateNumber,
+        confidence: parsed.confidence,
+        vehicleType: (parsed as any).vehicleType,
+        make: (parsed as any).make,
+        model: (parsed as any).model,
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  }, [hasScanned, onScanComplete, parseBarcodeData]);
 
   const handleScan = useCallback(async () => {
     if (!cameraRef.current || isScanning) return;
@@ -98,7 +173,7 @@ export default function OCRScanner({
       setIsScanning(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      // Simulate OCR processing
+      // Simulate OCR processing for license plates and vehicle info
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       // Mock OCR result based on scan type
@@ -133,6 +208,7 @@ export default function OCRScanner({
       }
 
       setScanResult(mockResult.plateNumber);
+      setHasScanned(true);
       onScanComplete(mockResult);
       
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -148,6 +224,7 @@ export default function OCRScanner({
   const handleRetry = useCallback(() => {
     Haptics.selectionAsync();
     setScanResult(null);
+    setHasScanned(false);
   }, []);
 
   const getScanInstructions = () => {
@@ -190,6 +267,17 @@ export default function OCRScanner({
 
   const instructions = getScanInstructions();
 
+  // Reset scan state when dialog opens/closes
+  useEffect(() => {
+    if (!visible) {
+      setHasScanned(false);
+      setScanResult(null);
+      setIsScanning(false);
+    } else {
+      lastScanTimeRef.current = 0;
+    }
+  }, [visible]);
+
   if (!visible) return null;
 
   if (hasPermission === null) {
@@ -222,7 +310,27 @@ export default function OCRScanner({
         style={styles.camera}
         facing={cameraType}
         flash={flashMode}
+        enableTorch={torchEnabled}
         onCameraReady={handleCameraReady}
+        barcodeScannerSettings={{
+          barcodeTypes: [
+            'qr',
+            'code128',
+            'code39',
+            'code93',
+            'ean13',
+            'ean8',
+            'pdf417',
+            'upc_a',
+            'upc_e',
+            'datamatrix',
+            'itf14',
+            'aztec',
+            'codabar',
+          ],
+        }}
+        onBarcodeScanned={handleBarcodeScanned}
+        active={visible}
       >
         <View style={styles.overlay}>
           <View style={styles.header}>
@@ -234,10 +342,10 @@ export default function OCRScanner({
               <Text style={styles.headerSubtitle}>{subtitle}</Text>
             </View>
             <TouchableOpacity style={styles.flashButton} onPress={toggleFlash}>
-              {flashMode === 'off' ? (
-                <FlashlightOff size={24} color="#FFFFFF" />
-              ) : (
+              {torchEnabled ? (
                 <Flashlight size={24} color="#FFFFFF" />
+              ) : (
+                <FlashlightOff size={24} color="#FFFFFF" />
               )}
             </TouchableOpacity>
           </View>
@@ -260,7 +368,7 @@ export default function OCRScanner({
               <TouchableOpacity
                 style={[styles.scanButton, isScanning && styles.scanButtonDisabled]}
                 onPress={handleScan}
-                disabled={isScanning}
+                disabled={isScanning || hasScanned}
               >
                 {isScanning ? (
                   <View style={styles.scanningIndicator} />
@@ -271,7 +379,7 @@ export default function OCRScanner({
                 )}
               </TouchableOpacity>
 
-              {scanResult && (
+              {(scanResult || hasScanned) && (
                 <TouchableOpacity style={styles.controlButton} onPress={handleRetry}>
                   <RotateCcw size={24} color="#FFFFFF" />
                 </TouchableOpacity>
@@ -279,7 +387,11 @@ export default function OCRScanner({
             </View>
 
             <View style={styles.instructions}>
-              <Text style={styles.instructionsTitle}>Tips:</Text>
+              {scanResult ? (
+                <Text style={styles.instructionsTitle}>Plate: {scanResult}</Text>
+              ) : (
+                <Text style={styles.instructionsTitle}>Tips:</Text>
+              )}
               {instructions.tips.map((tip, index) => (
                 <Text key={index} style={styles.instructionText}>
                   • {tip}
