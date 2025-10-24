@@ -3,6 +3,7 @@ import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppProvider, useApp } from "@/contexts/AppContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 
@@ -39,14 +40,16 @@ function InitialRouteHandler() {
 export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AppProvider>
-        <NotificationProvider>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <InitialRouteHandler />
-            <RootLayoutNav />
-          </GestureHandlerRootView>
-        </NotificationProvider>
-      </AppProvider>
+      <SafeAreaProvider>
+        <AppProvider>
+          <NotificationProvider>
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <InitialRouteHandler />
+              <RootLayoutNav />
+            </GestureHandlerRootView>
+          </NotificationProvider>
+        </AppProvider>
+      </SafeAreaProvider>
     </QueryClientProvider>
   );
 }

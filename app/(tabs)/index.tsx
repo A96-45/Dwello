@@ -44,8 +44,6 @@ export default function HomeScreen() {
   const [viewedProperties, setViewedProperties] = useState<string[]>([]);
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
   const [activeFilterType, setActiveFilterType] = useState<typeof FILTER_CHIPS[number]['id'] | null>(null);
-  const [cardStack, setCardStack] = useState<ExtendedProperty[]>([]);
-  
   const properties = useMemo(() => {
     let filtered = MOCK_PROPERTIES.filter(p => p.status === 'available');
 
@@ -84,88 +82,68 @@ export default function HomeScreen() {
     return filtered;
   }, [filters]);
 
-  // Create endless card stack by repeating properties
-  const createEndlessStack = useCallback(() => {
-    if (properties.length === 0) return [];
+  // Simplified infinite card management
+  const getNextIndex = (currentIdx: number) => {
+    if (currentIdx >= properties.length - 1) {
+      return 0; // Loop back to the beginning
+    }
+    return currentIdx + 1;
+  };
+
+  const getPreviousIndex = (currentIdx: number) => {
+    if (currentIdx <= 0) {
+      return properties.length - 1; // Loop back to the end
+    }
+    return currentIdx - 1;
+  };
+
+  // Get the current visible cards (current and next 2)
+  const visibleCards = useMemo(() => {
+    const cards: ExtendedProperty[] = [];
+    let idx = currentIndex;
     
-    // Create a large stack by repeating the properties array multiple times
-    const stackSize = Math.max(50, properties.length * 10); // At least 50 cards
-    const stack = [];
-    
-    for (let i = 0; i < stackSize; i++) {
-      const property = properties[i % properties.length];
-      // Add a unique key to differentiate repeated properties
-      stack.push({
-        ...property,
-        id: `${property.id}_${Math.floor(i / properties.length)}_${i}`,
-        originalId: property.id,
-      });
+    // Add current and next 2 cards
+    for (let i = 0; i < 3; i++) {
+      if (properties[idx]) {
+        cards.push({
+          ...properties[idx],
+          id: `${properties[idx].id}_${i}`,
+          originalId: properties[idx].id
+        });
+      }
+      idx = getNextIndex(idx);
     }
     
-    return stack;
-  }, [properties]);
-
-  // Initialize card stack when properties change
-  React.useEffect(() => {
-    const newStack = createEndlessStack();
-    setCardStack(newStack);
-    setCurrentIndex(0);
-    setViewedProperties([]);
-  }, [createEndlessStack]);
-
-  const currentProperty = cardStack[currentIndex];
+    return cards;
+  }, [currentIndex, properties]);
 
   const handlePrevious = useCallback(() => {
-    setCurrentIndex(prev => Math.max(0, prev - 1));
+    setCurrentIndex(getPreviousIndex);
   }, []);
 
   const handleSwipe = useCallback((direction: 'left' | 'right' | 'up' | 'down') => {
-    if (currentProperty && !viewedProperties.includes(currentProperty.originalId || currentProperty.id)) {
-      setViewedProperties(prev => [...prev, currentProperty.originalId || currentProperty.id]);
+    const currentProperty = properties[currentIndex];
+    
+    if (currentProperty && !viewedProperties.includes(currentProperty.id)) {
+      setViewedProperties(prev => [...prev, currentProperty.id]);
     }
     
     if (direction === 'down') {
       handlePrevious();
     } else {
-      setCurrentIndex(prev => {
-        const nextIndex = prev + 1;
-        
-        // If we're getting close to the end of our stack, extend it
-        if (nextIndex >= cardStack.length - 10 && properties.length > 0) {
-          const newCards = [];
-          const startIndex = cardStack.length;
-          
-          // Add 20 more cards to the stack
-          for (let i = 0; i < 20; i++) {
-            const property = properties[i % properties.length];
-            newCards.push({
-              ...property,
-              id: `${property.id}_${Math.floor((startIndex + i) / properties.length)}_${startIndex + i}`,
-              originalId: property.id,
-            });
-          }
-          
-          setCardStack(prevStack => [...prevStack, ...newCards]);
-        }
-        
-        return nextIndex;
-      });
+      setCurrentIndex(getNextIndex);
     }
-  }, [currentProperty, cardStack.length, properties, viewedProperties, handlePrevious]);
+  }, [currentIndex, properties, viewedProperties, handlePrevious]);
 
 
 
-  const handleCardPress = useCallback(() => {
-    if (currentProperty) {
-      router.push(`/property/${currentProperty.originalId || currentProperty.id}`);
-    }
-  }, [currentProperty, router]);
+  const handleCardPress = useCallback((property: Property) => {
+    router.push(`/property/${property.id}`);
+  }, [router]);
 
-  const handleDoubleTap = useCallback(() => {
-    if (currentProperty) {
-      toggleSaveProperty(currentProperty.originalId || currentProperty.id);
-    }
-  }, [currentProperty, toggleSaveProperty]);
+  const handleDoubleTap = useCallback((property: Property) => {
+    toggleSaveProperty(property.id);
+  }, [toggleSaveProperty]);
 
   const handleFilterChipPress = (chipId: typeof FILTER_CHIPS[number]['id']) => {
     Haptics.selectionAsync();
@@ -185,8 +163,8 @@ export default function HomeScreen() {
   }, [updateFilters]);
 
   const renderCard = (property: ExtendedProperty, index: number) => {
-    const isFirst = index === currentIndex;
-    const position = index - currentIndex;
+    const isFirst = index === 0;
+    const position = index;
     
     if (position < 0) return null;
     if (position > 2) return null;
@@ -204,14 +182,14 @@ export default function HomeScreen() {
         onSwipeRight={() => handleSwipe('right')}
         onSwipeUp={() => handleSwipe('up')}
         onSwipeDown={() => handleSwipe('down')}
-        onPress={handleCardPress}
-        onDoubleTap={handleDoubleTap}
+        onPress={() => handleCardPress(property)}
+        onDoubleTap={() => handleDoubleTap(property)}
         isSaved={isSaved(property.originalId || property.id)}
         onToggleSave={() => toggleSaveProperty(property.originalId || property.id)}
         style={{
           transform: [{ scale }, { translateY }],
           opacity,
-          zIndex: cardStack.length - index,
+          zIndex: properties.length - index,
         }}
       />
     );
@@ -398,7 +376,7 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.cardContainer}>
-        {cardStack.length === 0 ? (
+        {properties.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>No properties found</Text>
             <Text style={styles.emptySubtitle}>Try adjusting your filters</Text>
@@ -411,30 +389,12 @@ export default function HomeScreen() {
           </View>
         ) : (
           <>
-            {cardStack.slice(currentIndex, currentIndex + 3).map((property, index) => 
-              renderCard(property, currentIndex + index)
+            {visibleCards.map((property, index) => 
+              renderCard(property, index)
             )}
           </>
         )}
       </View>
-
-      {currentProperty && (
-        <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBar}>
-              <View
-                style={[
-                  styles.progressFill,
-                  { width: properties.length > 0 ? `${Math.min(((currentIndex + 1) / properties.length) * 100, 100)}%` : '0%' },
-                ]}
-              />
-            </View>
-            <Text style={styles.progressText}>
-              Property {currentIndex + 1} of {properties.length > 0 ? '∞' : 0}
-            </Text>
-          </View>
-        </View>
-      )}
 
       <FilterBottomSheet
         visible={filterSheetVisible}
@@ -582,6 +542,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E5E7EB',
     zIndex: 999,
     elevation: 5,
+    marginBottom: 1, // Added small margin
   },
   filtersContent: {
     paddingHorizontal: 16,
@@ -623,7 +584,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 20,
+    paddingVertical: 1, // Reduced padding
   },
   emptyState: {
     alignItems: 'center',
@@ -653,33 +614,5 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600' as const,
-  },
-  bottomBar: {
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    zIndex: 998,
-  },
-  progressContainer: {
-    gap: 8,
-  },
-  progressBar: {
-    height: 4,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#3B82F6',
-    borderRadius: 2,
-  },
-  progressText: {
-    fontSize: 13,
-    color: '#6B7280',
-    textAlign: 'center',
-    fontWeight: '500' as const,
   },
 });

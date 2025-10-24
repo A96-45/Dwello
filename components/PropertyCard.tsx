@@ -10,11 +10,27 @@ import {
   PanResponder,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Heart, MoreVertical, MapPin, Bed, Bath, Square, Car, Wifi, Shield } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { 
+  Heart, 
+  MoreVertical, 
+  MapPin, 
+  Bed, 
+  Bath, 
+  Square, 
+  Car, 
+  Wifi, 
+  Shield,
+  Star,
+  Check
+} from 'lucide-react-native';
 import type { Property } from '@/types';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const SWIPE_THRESHOLD = 40;
+const SWIPE_THRESHOLD = 60; // Reduced threshold for easier swipes
+const VELOCITY_THRESHOLD = 0.25; // Lower velocity threshold for smoother detection
+const CARD_WIDTH = SCREEN_WIDTH - 40;
+const CARD_HEIGHT = SCREEN_HEIGHT * 0.7;
 
 interface PropertyCardProps {
   property: Property;
@@ -43,57 +59,46 @@ export default function PropertyCard({
   onToggleSave,
   style,
 }: PropertyCardProps) {
+  const router = useRouter();
   const pan = useRef(new Animated.ValueXY()).current;
   const lastTap = useRef(0);
-  const scale = useRef(new Animated.Value(1)).current;
 
   const resetPosition = useCallback(() => {
-    Animated.parallel([
-      Animated.spring(pan, {
-        toValue: { x: 0, y: 0 },
-        useNativeDriver: true,
-        friction: 6,
-        tension: 50,
-      }),
-      Animated.spring(scale, {
-        toValue: 1,
-        useNativeDriver: true,
-        friction: 6,
-      }),
-    ]).start();
-  }, [pan, scale]);
+    Animated.spring(pan, {
+      toValue: { x: 0, y: 0 },
+      useNativeDriver: true,
+      friction: 7, // Increased friction for snappier return
+      tension: 40, // Reduced tension for smoother motion
+      restSpeedThreshold: 100,
+      restDisplacementThreshold: 40,
+    }).start();
+  }, [pan]);
 
   const animateOut = useCallback((direction: 'left' | 'right' | 'up' | 'down', callback?: () => void) => {
     const toValue = {
-      left: { x: -SCREEN_WIDTH * 1.5, y: 0 },
-      right: { x: SCREEN_WIDTH * 1.5, y: 0 },
-      up: { x: 0, y: -SCREEN_HEIGHT * 1.2 },
-      down: { x: 0, y: SCREEN_HEIGHT * 1.2 },
+      left: { x: -SCREEN_WIDTH * 1.5, y: 50 }, // Reduced multiplier and y-offset
+      right: { x: SCREEN_WIDTH * 1.5, y: 50 },
+      up: { x: 0, y: -SCREEN_HEIGHT },
+      down: { x: 0, y: SCREEN_HEIGHT },
     }[direction];
 
-    Animated.parallel([
-      Animated.timing(pan, {
-        toValue,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scale, {
-        toValue: 0.8,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
+    Animated.timing(pan, {
+      toValue,
+      useNativeDriver: true,
+      duration: 200, // Faster exit animation
+    }).start(() => {
       pan.setValue({ x: 0, y: 0 });
-      scale.setValue(1);
       callback?.();
     });
-  }, [pan, scale]);
+  }, [pan]);
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => isFirst,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        return isFirst && (Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5);
+        if (!isFirst) return false;
+        const { dx, dy } = gestureState;
+        return Math.abs(dx) > 2 || Math.abs(dy) > 2;
       },
       onPanResponderGrant: () => {
         pan.setOffset({
@@ -111,22 +116,34 @@ export default function PropertyCard({
 
         const absX = Math.abs(gestureState.dx);
         const absY = Math.abs(gestureState.dy);
+        const velocityX = Math.abs(gestureState.vx);
+        const velocityY = Math.abs(gestureState.vy);
 
-        if (absX > SWIPE_THRESHOLD || absY > SWIPE_THRESHOLD) {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          if (absX > absY) {
-            if (gestureState.dx > 0) {
-              animateOut('right', onSwipeRight);
+        // Use either velocity or distance threshold
+        const hasMetHorizontalThreshold = absX > SWIPE_THRESHOLD || velocityX > VELOCITY_THRESHOLD;
+        const hasMetVerticalThreshold = absY > SWIPE_THRESHOLD || velocityY > VELOCITY_THRESHOLD;
+
+        if (hasMetHorizontalThreshold || hasMetVerticalThreshold) {
+          // Determine direction based on larger movement or velocity
+          const isHorizontal = absX > absY || velocityX > velocityY;
+          
+          requestAnimationFrame(() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            
+            if (isHorizontal) {
+              if (gestureState.dx > 0) {
+                animateOut('right', onSwipeRight);
+              } else {
+                animateOut('left', onSwipeLeft);
+              }
             } else {
-              animateOut('left', onSwipeLeft);
+              if (gestureState.dy > 0) {
+                animateOut('down', onSwipeDown);
+              } else {
+                animateOut('up', onSwipeUp);
+              }
             }
-          } else {
-            if (gestureState.dy > 0) {
-              animateOut('down', onSwipeDown);
-            } else {
-              animateOut('up', onSwipeUp);
-            }
-          }
+          });
         } else {
           resetPosition();
         }
@@ -146,7 +163,11 @@ export default function PropertyCard({
       Haptics.selectionAsync();
       setTimeout(() => {
         if (Date.now() - lastTap.current >= DOUBLE_TAP_DELAY) {
-          onPress?.();
+          if (onPress) {
+            onPress();
+          } else {
+            router.push(`/property/${property.id}`);
+          }
         }
       }, DOUBLE_TAP_DELAY);
     }
@@ -158,7 +179,7 @@ export default function PropertyCard({
       case 'available':
         return '#10B981';
       case 'occupied':
-        return '#EF4444';
+        return '#DC2626';
       case 'maintenance':
         return '#3B82F6';
       default:
@@ -171,7 +192,7 @@ export default function PropertyCard({
       case 'available':
         return property.availableFrom === 'now' ? 'AVAILABLE NOW' : `AVAILABLE ${property.availableFrom}`;
       case 'occupied':
-        return 'OCCUPIED';
+        return 'TAKEN';
       case 'maintenance':
         return 'UNDER MAINTENANCE';
       default:
@@ -179,152 +200,178 @@ export default function PropertyCard({
     }
   };
 
+  const getStatusIcon = () => {
+    switch (property.status) {
+      case 'occupied':
+        return '🔒';
+      case 'available':
+        return '🔑';
+      case 'maintenance':
+        return '🔧';
+      default:
+        return '⏳';
+    }
+  };
+
   const rotate = pan.x.interpolate({
     inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
-    outputRange: ['-15deg', '0deg', '15deg'],
+    outputRange: ['-10deg', '0deg', '10deg'],
     extrapolate: 'clamp',
   });
 
   const likeOpacity = pan.x.interpolate({
-    inputRange: [0, SCREEN_WIDTH / 4],
+    inputRange: [25, 100],
     outputRange: [0, 1],
     extrapolate: 'clamp',
   });
 
   const nopeOpacity = pan.x.interpolate({
-    inputRange: [-SCREEN_WIDTH / 4, 0],
+    inputRange: [-100, -25],
     outputRange: [1, 0],
     extrapolate: 'clamp',
   });
 
-  const cardStyle = isFirst
-    ? {
-        transform: [
-          { translateX: pan.x },
-          { translateY: pan.y },
-          { rotate },
-          { scale },
-        ],
-      }
-    : {};
+  const cardStyle = {
+    transform: [
+      { translateX: pan.x },
+      { translateY: pan.y },
+      { rotate },
+    ],
+  };
 
   return (
     <Animated.View
-      style={[styles.card, style, cardStyle]}
+      style={[styles.card, style, isFirst && cardStyle]}
       {...(isFirst ? panResponder.panHandlers : {})}
     >
       <TouchableOpacity activeOpacity={0.95} onPress={handlePress} style={styles.cardContent}>
         <Image source={{ uri: property.images[0] }} style={styles.image} resizeMode="cover" />
 
+        {/* Gradient Overlays */}
+        <View style={styles.topGradient} />
+        <View style={styles.bottomGradient} />
+
         {/* Swipe labels */}
-        <Animated.View style={[styles.labelLike, { opacity: likeOpacity }]}> 
-          <Text style={styles.labelTextLike}>LIKE</Text>
-        </Animated.View>
-        <Animated.View style={[styles.labelNope, { opacity: nopeOpacity }]}> 
-          <Text style={styles.labelTextNope}>NOPE</Text>
-        </Animated.View>
+        {isFirst && (
+          <>
+            <Animated.View style={[styles.labelLike, { opacity: likeOpacity }]}> 
+              <Text style={styles.labelTextLike}>LIKE</Text>
+            </Animated.View>
+            <Animated.View style={[styles.labelNope, { opacity: nopeOpacity }]}> 
+              <Text style={styles.labelTextNope}>NOPE</Text>
+            </Animated.View>
+          </>
+        )}
         
-        <View style={styles.gradient}>
-          <View style={styles.topOverlay}>
+        <View style={styles.contentContainer}>
+          {/* Top Section */}
+          <View style={styles.topSection}>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor() }]}>
+              <Text style={styles.statusIcon}>{getStatusIcon()}</Text>
               <Text style={styles.statusText}>{getStatusText()}</Text>
             </View>
             
             <View style={styles.topActions}>
-              <TouchableOpacity style={styles.actionButton} onPress={(e) => {
-                e.stopPropagation();
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                onToggleSave?.();
-              }}>
+              <TouchableOpacity 
+                style={styles.actionButton} 
+                onPress={(e) => {
+                  e.stopPropagation();
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  onToggleSave?.();
+                }}
+              >
                 <Heart
-                  size={24}
+                  size={22}
                   color={isSaved ? '#EF4444' : '#FFFFFF'}
                   fill={isSaved ? '#EF4444' : 'transparent'}
                 />
-                <Text style={styles.actionText}>{property.saves}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.actionButton}>
-                <MoreVertical size={24} color="#FFFFFF" />
+                <MoreVertical size={22} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
           </View>
 
+          {/* Badges */}
           <View style={styles.badges}>
             {property.verified && (
               <View style={styles.badge}>
-                <Text style={styles.badgeText}>✓ Verified</Text>
+                <Check size={10} color="#FFFFFF" />
+                <Text style={styles.badgeText}>Verified</Text>
               </View>
             )}
             {property.featured && (
-              <View style={[styles.badge, { backgroundColor: '#F59E0B' }]}>
-                <Text style={styles.badgeText}>⭐ Premium</Text>
+              <View style={[styles.badge, styles.premiumBadge]}>
+                <Star size={10} color="#FFFFFF" />
+                <Text style={styles.badgeText}>Premium</Text>
               </View>
             )}
             {property.hasVirtualTour && (
               <View style={styles.badge}>
-                <Text style={styles.badgeText}>📸 360° Tour</Text>
+                <Text style={styles.badgeText}>360° Tour</Text>
               </View>
             )}
           </View>
 
-          <View style={styles.bottomOverlay}>
-            <View style={styles.propertyInfo}>
-              <View style={styles.header}>
-                <View style={styles.typeContainer}>
-                  <Text style={styles.propertyType}>{property.type.replace('_', ' ').toUpperCase()}</Text>
-                </View>
-              </View>
-              
-              <Text style={styles.title} numberOfLines={2}>{property.title}</Text>
-              
-              <Text style={styles.price}>KES {property.price.toLocaleString()}/month</Text>
-              
-              <View style={styles.locationRow}>
-                <MapPin size={16} color="#FFFFFF" />
-                <Text style={styles.location}>{property.location}, {property.city}</Text>
-                {property.distance && (
-                  <Text style={styles.distance}> · {property.distance} km away</Text>
-                )}
-              </View>
-
-              <View style={styles.specs}>
-                {property.bedrooms > 0 && (
-                  <View style={styles.spec}>
-                    <Bed size={16} color="#FFFFFF" />
-                    <Text style={styles.specText}>{property.bedrooms}</Text>
-                  </View>
-                )}
-                <View style={styles.spec}>
-                  <Bath size={16} color="#FFFFFF" />
-                  <Text style={styles.specText}>{property.bathrooms}</Text>
-                </View>
-                <View style={styles.spec}>
-                  <Square size={16} color="#FFFFFF" />
-                  <Text style={styles.specText}>{property.size}m²</Text>
-                </View>
-                {property.parking && (
-                  <View style={styles.spec}>
-                    <Car size={16} color="#FFFFFF" />
-                  </View>
-                )}
-                {property.amenities.some(a => a.toLowerCase().includes('wifi')) && (
-                  <View style={styles.spec}>
-                    <Wifi size={16} color="#FFFFFF" />
-                  </View>
-                )}
-                {property.amenities.some(a => a.toLowerCase().includes('security')) && (
-                  <View style={styles.spec}>
-                    <Shield size={16} color="#FFFFFF" />
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.landlordRow}>
-                <Text style={styles.landlordText}>
-                  {property.landlord.name} · ⭐ {property.landlord.rating}
-                  {property.landlord.verified && ' · ✓'}
+          {/* Bottom Section */}
+          <View style={styles.bottomSection}>
+            <View style={styles.propertyHeader}>
+              <View style={styles.typeContainer}>
+                <Text style={styles.propertyType}>
+                  {property.type.replace('_', ' ').toUpperCase()}
                 </Text>
               </View>
+            </View>
+            
+            <Text style={styles.title} numberOfLines={2}>{property.title}</Text>
+            
+            <Text style={styles.price}>KES {property.price.toLocaleString()}/mo</Text>
+            
+            <View style={styles.locationRow}>
+              <MapPin size={14} color="#FFFFFF" />
+              <Text style={styles.location} numberOfLines={1}>
+                {property.location}, {property.city}
+                {property.distance && ` · ${property.distance}km`}
+              </Text>
+            </View>
+
+            <View style={styles.specs}>
+              {property.bedrooms > 0 && (
+                <View style={styles.spec}>
+                  <Bed size={14} color="#FFFFFF" />
+                  <Text style={styles.specText}>{property.bedrooms}</Text>
+                </View>
+              )}
+              <View style={styles.spec}>
+                <Bath size={14} color="#FFFFFF" />
+                <Text style={styles.specText}>{property.bathrooms}</Text>
+              </View>
+              <View style={styles.spec}>
+                <Square size={14} color="#FFFFFF" />
+                <Text style={styles.specText}>{property.size}m²</Text>
+              </View>
+              {property.parking && (
+                <View style={styles.spec}>
+                  <Car size={14} color="#FFFFFF" />
+                </View>
+              )}
+              {property.amenities.some(a => a.toLowerCase().includes('wifi')) && (
+                <View style={styles.spec}>
+                  <Wifi size={14} color="#FFFFFF" />
+                </View>
+              )}
+              {property.amenities.some(a => a.toLowerCase().includes('security')) && (
+                <View style={styles.spec}>
+                  <Shield size={14} color="#FFFFFF" />
+                </View>
+              )}
+            </View>
+
+            <View style={styles.landlordRow}>
+              <Text style={styles.landlordText} numberOfLines={1}>
+                {property.landlord.name} · ⭐ {property.landlord.rating}
+                {property.landlord.verified && ' · ✓'}
+              </Text>
             </View>
           </View>
         </View>
@@ -335,17 +382,17 @@ export default function PropertyCard({
 
 const styles = StyleSheet.create({
   card: {
-    position: 'absolute' as const,
-    width: SCREEN_WIDTH - 32,
-    height: SCREEN_HEIGHT * 0.68,
-    borderRadius: 24,
+    position: 'absolute',
+    width: CARD_WIDTH,
+    height: CARD_HEIGHT,
+    borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: '#FFFFFF',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
-    elevation: 8,
+    elevation: 5,
   },
   cardContent: {
     flex: 1,
@@ -353,137 +400,118 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
-    position: 'absolute' as const,
+    position: 'absolute',
   },
-  gradient: {
+  topGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '35%',
+    backgroundColor: 'rgba(0,0,0,0.25)',
+  },
+  bottomGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '65%',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  contentContainer: {
     flex: 1,
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(0,0,0,0.15)',
   },
-  labelLike: {
-    position: 'absolute' as const,
-    top: 24,
-    left: 24,
-    transform: [{ rotate: '-15deg' }],
-    borderWidth: 4,
-    borderColor: '#10B981',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: 'rgba(16,185,129,0.1)',
-  },
-  labelNope: {
-    position: 'absolute' as const,
-    top: 24,
-    right: 24,
-    transform: [{ rotate: '15deg' }],
-    borderWidth: 4,
-    borderColor: '#EF4444',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: 'rgba(239,68,68,0.1)',
-  },
-  labelTextLike: {
-    color: '#10B981',
-    fontSize: 18,
-    fontWeight: '900' as const,
-    letterSpacing: 2,
-  },
-  labelTextNope: {
-    color: '#EF4444',
-    fontSize: 18,
-    fontWeight: '900' as const,
-    letterSpacing: 2,
-  },
-  topOverlay: {
+  topSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     padding: 16,
-    paddingTop: 20,
+    paddingTop: 40,
   },
   statusBadge: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  statusIcon: {
+    marginRight: 4,
+    fontSize: 12,
   },
   statusText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700' as const,
+    fontSize: 11,
+    fontWeight: '700',
     letterSpacing: 0.5,
   },
   topActions: {
     flexDirection: 'column',
-    gap: 12,
+    gap: 10,
   },
   actionButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  actionText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '600' as const,
-    marginTop: 2,
-  },
   badges: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
     paddingHorizontal: 16,
-    marginTop: -80,
+    marginTop: -30,
   },
   badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: 'rgba(59, 130, 246, 0.9)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  premiumBadge: {
+    backgroundColor: 'rgba(245, 158, 11, 0.9)',
   },
   badgeText: {
     color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '600' as const,
+    fontSize: 10,
+    fontWeight: '600',
   },
-  bottomOverlay: {
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    padding: 20,
-    paddingBottom: 24,
+  bottomSection: {
+    padding: 16,
+    paddingBottom: 20,
   },
-  propertyInfo: {
-    gap: 8,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
+  propertyHeader: {
+    marginBottom: 8,
   },
   typeContainer: {
     backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
   },
   propertyType: {
     color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700' as const,
+    fontSize: 10,
+    fontWeight: '700',
     letterSpacing: 0.5,
   },
   title: {
     fontSize: 24,
-    fontWeight: '700' as const,
+    fontWeight: '700',
     color: '#FFFFFF',
-    marginBottom: 4,
+    marginBottom: 6,
+    lineHeight: 28,
   },
   price: {
     fontSize: 20,
-    fontWeight: '700' as const,
+    fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 8,
   },
@@ -491,22 +519,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
+    maxWidth: '100%',
   },
   location: {
     fontSize: 14,
     color: '#FFFFFF',
     marginLeft: 4,
-    fontWeight: '500' as const,
-  },
-  distance: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-    fontWeight: '400' as const,
+    fontWeight: '500',
+    flex: 1,
   },
   specs: {
     flexDirection: 'row',
     gap: 16,
     marginBottom: 12,
+    flexWrap: 'wrap',
   },
   spec: {
     flexDirection: 'row',
@@ -514,18 +540,54 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   specText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#FFFFFF',
-    fontWeight: '600' as const,
+    fontWeight: '600',
   },
   landlordRow: {
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.2)',
-    paddingTop: 12,
+    paddingTop: 10,
   },
   landlordText: {
-    fontSize: 13,
+    fontSize: 12,
     color: 'rgba(255,255,255,0.9)',
-    fontWeight: '500' as const,
+    fontWeight: '500',
+  },
+  labelLike: {
+    position: 'absolute',
+    top: 100,
+    left: 30,
+    transform: [{ rotate: '-20deg' }],
+    borderWidth: 5,
+    borderColor: '#10B981',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 8,
+    zIndex: 1000,
+  },
+  labelNope: {
+    position: 'absolute',
+    top: 100,
+    right: 30,
+    transform: [{ rotate: '20deg' }],
+    borderWidth: 5,
+    borderColor: '#EF4444',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 8,
+    zIndex: 1000,
+  },
+  labelTextLike: {
+    color: '#10B981',
+    fontSize: 32,
+    fontWeight: '900',
+    letterSpacing: 2,
+  },
+  labelTextNope: {
+    color: '#EF4444',
+    fontSize: 32,
+    fontWeight: '900',
+    letterSpacing: 2,
   },
 });
