@@ -2,6 +2,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { User, UserRole, Vehicle, SavedCollection, FilterOptions } from '@/types';
+import { BlockchainService } from '@/services/BlockchainService';
 
 const STORAGE_KEYS = {
   USER_ROLE: '@dwello:userRole',
@@ -57,9 +58,28 @@ export const [AppProvider, useApp] = createContextHook(() => {
     }
   };
 
-  const switchRole = useCallback(async (newRole: UserRole) => {
+  const switchRole = useCallback(async (newRole: UserRole): Promise<{
+    success: boolean;
+    error?: string;
+    requiresVerification?: boolean;
+  }> => {
+    // Check blockchain verification for landlord role
+    if (newRole === 'landlord' || newRole === 'both') {
+      const canBecomeLandlord = await BlockchainService.canUserBecomeLandlord('demo_user');
+      
+      if (!canBecomeLandlord.allowed) {
+        return {
+          success: false,
+          error: canBecomeLandlord.reason,
+          requiresVerification: canBecomeLandlord.requiresVerification,
+        };
+      }
+    }
+    
     setUserRole(newRole);
     await AsyncStorage.setItem(STORAGE_KEYS.USER_ROLE, newRole);
+    
+    return { success: true };
   }, []);
 
   const updateUser = useCallback(async (userData: User) => {

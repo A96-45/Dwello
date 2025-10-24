@@ -3,193 +3,103 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Car, Clock, MapPin, CheckCircle, Scan } from 'lucide-react-native';
+import { ArrowLeft, Camera, Scan, Settings } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
-import OCRScanner from '@/components/OCRScanner';
-import { useApp } from '@/contexts/AppContext';
-
-interface Vehicle {
-  id: string;
-  plateNumber: string;
-  vehicleType: string;
-  make: string;
-  model: string;
-  color: string;
-  registeredAt: string;
-  lastSeen: string;
-  status: 'active' | 'inactive' | 'suspended';
-}
-
-const MOCK_VEHICLES: Vehicle[] = [
-  {
-    id: '1',
-    plateNumber: 'KCA 123A',
-    vehicleType: 'Sedan',
-    make: 'Toyota',
-    model: 'Camry',
-    color: 'White',
-    registeredAt: '2024-01-10T10:30:00Z',
-    lastSeen: '2024-01-15T14:20:00Z',
-    status: 'active',
-  },
-  {
-    id: '2',
-    plateNumber: 'KCB 456B',
-    vehicleType: 'SUV',
-    make: 'Honda',
-    model: 'CR-V',
-    color: 'Black',
-    registeredAt: '2024-01-08T09:15:00Z',
-    lastSeen: '2024-01-14T16:45:00Z',
-    status: 'active',
-  },
-  {
-    id: '3',
-    plateNumber: 'KCC 789C',
-    vehicleType: 'Hatchback',
-    make: 'Nissan',
-    model: 'Note',
-    color: 'Silver',
-    registeredAt: '2024-01-05T11:20:00Z',
-    lastSeen: '2024-01-12T08:30:00Z',
-    status: 'inactive',
-  },
-];
+import { Camera as ExpoCamera, CameraView } from 'expo-camera';
 
 export default function SmartParkScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { isLandlord } = useApp();
-  const [vehicles, setVehicles] = useState<Vehicle[]>(MOCK_VEHICLES);
-  const [showScanner, setShowScanner] = useState(false);
-  const [scanType, setScanType] = useState<'license_plate' | 'vehicle_info' | 'general'>('license_plate');
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [showCamera, setShowCamera] = useState(false);
 
-  const handleScanPlate = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setScanType('license_plate');
-    setShowScanner(true);
-  }, []);
-
-  const handleScanVehicle = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setScanType('vehicle_info');
-    setShowScanner(true);
-  }, []);
-
-  const handleScanComplete = useCallback((result: {
-    plateNumber: string;
-    confidence: number;
-    vehicleType?: string;
-    make?: string;
-    model?: string;
-  }) => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setShowScanner(false);
-
-    // Check if vehicle already exists
-    const existingVehicle = vehicles.find(v => v.plateNumber === result.plateNumber);
+  const requestCameraPermission = useCallback(async () => {
+    const { status } = await ExpoCamera.requestCameraPermissionsAsync();
+    setHasPermission(status === 'granted');
     
-    if (existingVehicle) {
+    if (status === 'granted') {
+      setShowCamera(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else {
       Alert.alert(
-        'Vehicle Found',
-        `This vehicle (${result.plateNumber}) is already registered.`,
+        'Camera Permission Required',
+        'Please allow camera access to use SmartPark features.',
+        [{ text: 'OK' }]
+      );
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+  }, []);
+
+  const handleOpenCamera = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    if (hasPermission === null) {
+      requestCameraPermission();
+    } else if (hasPermission === false) {
+      Alert.alert(
+        'Camera Access Denied',
+        'Camera permission is required for SmartPark. Please enable it in settings.',
         [
-          { text: 'OK', style: 'default' },
-          { text: 'View Details', onPress: () => console.log('View vehicle details') },
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => {
+            Alert.alert('Settings', 'Please enable camera permission in your device settings.');
+          }}
         ]
       );
     } else {
-      // Add new vehicle
-      const newVehicle: Vehicle = {
-        id: Date.now().toString(),
-        plateNumber: result.plateNumber,
-        vehicleType: result.vehicleType || 'Unknown',
-        make: result.make || 'Unknown',
-        model: result.model || 'Unknown',
-        color: 'Unknown',
-        registeredAt: new Date().toISOString(),
-        lastSeen: new Date().toISOString(),
-        status: 'active',
-      };
-
-      setVehicles(prev => [newVehicle, ...prev]);
-      
-      Alert.alert(
-        'Vehicle Registered',
-        `${result.plateNumber} has been successfully registered.`,
-        [{ text: 'OK', style: 'default' }]
-      );
+      setShowCamera(true);
     }
-  }, [vehicles]);
+  }, [hasPermission, requestCameraPermission]);
 
-  const handleVehiclePress = useCallback((vehicle: Vehicle) => {
+  const handleCloseCamera = useCallback(() => {
+    setShowCamera(false);
     Haptics.selectionAsync();
-    // TODO: Navigate to vehicle details
-    console.log('View vehicle details:', vehicle.id);
   }, []);
 
-  const handleRemoveVehicle = useCallback((vehicleId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert(
-      'Remove Vehicle',
-      'Are you sure you want to remove this vehicle from your account?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Remove', 
-          style: 'destructive',
-          onPress: () => setVehicles(prev => prev.filter(v => v.id !== vehicleId))
-        },
-      ]
+  if (showCamera && hasPermission) {
+    return (
+      <View style={styles.cameraContainer}>
+        <CameraView
+          style={styles.camera}
+          facing="back"
+        >
+          <View style={styles.cameraOverlay}>
+            <View style={styles.cameraHeader}>
+              <TouchableOpacity onPress={handleCloseCamera} style={styles.closeButton}>
+                <ArrowLeft size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+              <Text style={styles.cameraTitle}>SmartPark Camera</Text>
+              <View style={styles.headerSpacer} />
+            </View>
+
+            <View style={styles.cameraContent}>
+              <View style={styles.scanFrame}>
+                <View style={styles.corner} />
+                <View style={[styles.corner, styles.cornerTopRight]} />
+                <View style={[styles.corner, styles.cornerBottomLeft]} />
+                <View style={[styles.corner, styles.cornerBottomRight]} />
+              </View>
+              
+              <Text style={styles.scanInstructions}>
+                Point camera at license plate or parking area
+              </Text>
+            </View>
+
+            <View style={styles.cameraFooter}>
+              <TouchableOpacity style={styles.captureButton}>
+                <Scan size={32} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </CameraView>
+      </View>
     );
-  }, []);
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-
-  const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  const getStatusColor = (status: Vehicle['status']) => {
-    switch (status) {
-      case 'active':
-        return '#10B981';
-      case 'inactive':
-        return '#6B7280';
-      case 'suspended':
-        return '#EF4444';
-      default:
-        return '#6B7280';
-    }
-  };
-
-  const getStatusText = (status: Vehicle['status']) => {
-    switch (status) {
-      case 'active':
-        return 'Active';
-      case 'inactive':
-        return 'Inactive';
-      case 'suspended':
-        return 'Suspended';
-      default:
-        return 'Unknown';
-    }
-  };
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -198,160 +108,44 @@ export default function SmartParkScreen() {
           <ArrowLeft size={24} color="#111827" />
         </TouchableOpacity>
         <Text style={styles.title}>SmartPark</Text>
-        <View style={styles.headerRight}>
-          <Text style={styles.vehicleCount}>{vehicles.length}</Text>
-        </View>
+        <View style={styles.headerRight} />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.actionButtons}>
-            <TouchableOpacity style={[styles.actionButton, styles.emphasisButton]} onPress={handleScanPlate}>
-              <Scan size={24} color="#FFFFFF" />
-              <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>Start Scanning</Text>
-            </TouchableOpacity>
-            {isLandlord && (
-              <TouchableOpacity style={styles.actionButton} onPress={handleScanVehicle}>
-                <Car size={24} color="#10B981" />
-                <Text style={styles.actionButtonText}>Scan Vehicle</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+      <View style={styles.content}>
+        <View style={styles.welcomeCard}>
+          <Camera size={64} color="#3B82F6" />
+          <Text style={styles.welcomeTitle}>SmartPark Camera</Text>
+          <Text style={styles.welcomeSubtitle}>
+            Access your camera to scan license plates and manage parking
+          </Text>
         </View>
 
-        {isLandlord && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Registered Vehicles ({vehicles.length})</Text>
-            {vehicles.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Car size={48} color="#9CA3AF" />
-                <Text style={styles.emptyTitle}>No Vehicles Registered</Text>
-                <Text style={styles.emptySubtitle}>
-                  Use the scanner to register tenants' vehicles
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.vehiclesList}>
-                {vehicles.map((vehicle) => (
-                  <TouchableOpacity
-                    key={vehicle.id}
-                    style={styles.vehicleCard}
-                    onPress={() => handleVehiclePress(vehicle)}
-                  >
-                    <View style={styles.vehicleHeader}>
-                      <View style={styles.vehicleInfo}>
-                        <Text style={styles.plateNumber}>{vehicle.plateNumber}</Text>
-                        <Text style={styles.vehicleDetails}>
-                          {vehicle.make} {vehicle.model} • {vehicle.color}
-                        </Text>
-                      </View>
-                      <View style={[
-                        styles.statusBadge,
-                        { backgroundColor: getStatusColor(vehicle.status) + '20' }
-                      ]}>
-                        <Text style={[
-                          styles.statusText,
-                          { color: getStatusColor(vehicle.status) }
-                        ]}>
-                          {getStatusText(vehicle.status)}
-                        </Text>
-                      </View>
-                    </View>
+        <TouchableOpacity style={styles.cameraButton} onPress={handleOpenCamera}>
+          <Camera size={24} color="#FFFFFF" />
+          <Text style={styles.cameraButtonText}>Open Camera</Text>
+        </TouchableOpacity>
 
-                    <View style={styles.vehicleFooter}>
-                      <View style={styles.vehicleStat}>
-                        <Clock size={16} color="#6B7280" />
-                        <Text style={styles.vehicleStatText}>
-                          Last seen {formatTime(vehicle.lastSeen)}
-                        </Text>
-                      </View>
-                      <View style={styles.vehicleStat}>
-                        <MapPin size={16} color="#6B7280" />
-                        <Text style={styles.vehicleStatText}>
-                          Registered {formatDate(vehicle.registeredAt)}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.vehicleActions}>
-                      <TouchableOpacity style={styles.actionButtonSmall}>
-                        <Text style={styles.actionButtonSmallText}>View Details</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={[styles.actionButtonSmall, styles.removeButton]}
-                        onPress={() => handleRemoveVehicle(vehicle.id)}
-                      >
-                        <Text style={[styles.actionButtonSmallText, styles.removeButtonText]}>
-                          Remove
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </View>
-        )}
-
-        {isLandlord && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Parking History</Text>
-            <View style={styles.historyCard}>
-              <Text style={styles.historyTitle}>Recent Activity</Text>
-              <View style={styles.historyItem}>
-                <CheckCircle size={20} color="#10B981" />
-                <View style={styles.historyContent}>
-                  <Text style={styles.historyText}>Vehicle KCA 123A entered parking</Text>
-                  <Text style={styles.historyTime}>2 hours ago</Text>
-                </View>
-              </View>
-              <View style={styles.historyItem}>
-                <CheckCircle size={20} color="#10B981" />
-                <View style={styles.historyContent}>
-                  <Text style={styles.historyText}>Vehicle KCB 456B exited parking</Text>
-                  <Text style={styles.historyTime}>5 hours ago</Text>
-                </View>
-              </View>
-            </View>
-          </View>
-        )}
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>How It Works</Text>
-          <View style={styles.infoCard}>
-            <Text style={styles.infoTitle}>Role-Based SmartPark</Text>
-            <Text style={styles.infoText}>
-              Landlords register and manage vehicles. Tenants use the scanner for access.
+        {hasPermission === false && (
+          <View style={styles.permissionCard}>
+            <Settings size={32} color="#F59E0B" />
+            <Text style={styles.permissionTitle}>Camera Permission Required</Text>
+            <Text style={styles.permissionText}>
+              SmartPark needs camera access to scan license plates and manage parking. 
+              Please grant permission when prompted.
             </Text>
-            <View style={styles.infoFeatures}>
-              <Text style={styles.infoFeature}>• Landlords: Register tenants' vehicles</Text>
-              <Text style={styles.infoFeature}>• Tenants: Scan to enter/exit</Text>
-              <Text style={styles.infoFeature}>• Automatic plate recognition</Text>
-              <Text style={styles.infoFeature}>• Secure logs and history</Text>
-            </View>
+          </View>
+        )}
+
+        <View style={styles.infoCard}>
+          <Text style={styles.infoTitle}>What you can do:</Text>
+          <View style={styles.infoList}>
+            <Text style={styles.infoItem}>📸 Scan license plates</Text>
+            <Text style={styles.infoItem}>🅿️ Monitor parking spaces</Text>
+            <Text style={styles.infoItem}>🚗 Track vehicle entry/exit</Text>
+            <Text style={styles.infoItem}>📱 Quick camera access</Text>
           </View>
         </View>
-      </ScrollView>
-
-      {/* Floating scan button visible to all */}
-      <TouchableOpacity style={styles.fab} onPress={handleScanPlate}>
-        <Scan size={24} color="#FFFFFF" />
-      </TouchableOpacity>
-
-      {showScanner && (
-        <OCRScanner
-          visible={showScanner}
-          onClose={() => setShowScanner(false)}
-          onScanComplete={handleScanComplete}
-          scanType={scanType}
-          title={scanType === 'license_plate' ? 'Scan License Plate' : 'Scan Vehicle'}
-          subtitle={scanType === 'license_plate' 
-            ? 'Position the license plate within the frame'
-            : 'Position the vehicle within the frame'
-          }
-        />
-      )}
+      </View>
     </View>
   );
 }
@@ -377,232 +171,210 @@ const styles = StyleSheet.create({
   title: {
     flex: 1,
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '700' as const,
     color: '#111827',
   },
   headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  vehicleCount: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#3B82F6',
-    backgroundColor: '#EFF6FF',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    width: 40,
   },
   content: {
     flex: 1,
-  },
-  section: {
     padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    justifyContent: 'center',
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 16,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  actionButton: {
-    flex: 1,
+  welcomeCard: {
     backgroundColor: '#FFFFFF',
-    padding: 20,
-    borderRadius: 16,
+    borderRadius: 20,
+    padding: 32,
     alignItems: 'center',
+    marginBottom: 24,
     borderWidth: 1,
     borderColor: '#E5E7EB',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  emphasisButton: {
-    backgroundColor: '#3B82F6',
-    borderColor: '#3B82F6',
-  },
-  actionButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+  welcomeTitle: {
+    fontSize: 24,
+    fontWeight: '800' as const,
     color: '#111827',
     marginTop: 16,
     marginBottom: 8,
   },
-  emptySubtitle: {
-    fontSize: 14,
+  welcomeSubtitle: {
+    fontSize: 16,
     color: '#6B7280',
     textAlign: 'center',
+    lineHeight: 24,
   },
-  vehiclesList: {
+  cameraButton: {
+    backgroundColor: '#3B82F6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 12,
-  },
-  vehicleCard: {
-    backgroundColor: '#FFFFFF',
+    paddingVertical: 18,
     borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    marginBottom: 24,
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 2,
+    elevation: 4,
   },
-  vehicleHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  cameraButtonText: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+  },
+  permissionCard: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: 16,
+    padding: 20,
     alignItems: 'center',
-    marginBottom: 12,
-  },
-  vehicleInfo: {
-    flex: 1,
-  },
-  plateNumber: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  vehicleDetails: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  vehicleFooter: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 12,
-  },
-  vehicleStat: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  vehicleStatText: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  vehicleActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  actionButtonSmall: {
-    flex: 1,
-    backgroundColor: '#F3F4F6',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  actionButtonSmallText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  removeButton: {
-    backgroundColor: '#FEF2F2',
-  },
-  removeButtonText: {
-    color: '#EF4444',
-  },
-  historyCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
+    marginBottom: 24,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#FED7AA',
   },
-  historyTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 12,
+  permissionTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#92400E',
+    marginTop: 12,
+    marginBottom: 8,
   },
-  historyItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  historyContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  historyText: {
+  permissionText: {
     fontSize: 14,
-    color: '#374151',
-    marginBottom: 2,
-  },
-  historyTime: {
-    fontSize: 12,
-    color: '#6B7280',
+    color: '#92400E',
+    textAlign: 'center',
+    lineHeight: 20,
   },
   infoCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 20,
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
   infoTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '700' as const,
     color: '#111827',
-    marginBottom: 8,
-  },
-  infoText: {
-    fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 20,
     marginBottom: 12,
   },
-  infoFeatures: {
-    gap: 4,
+  infoList: {
+    gap: 8,
   },
-  infoFeature: {
+  infoItem: {
     fontSize: 14,
     color: '#374151',
+    lineHeight: 20,
   },
-  fab: {
+  // Camera styles
+  cameraContainer: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  camera: {
+    flex: 1,
+  },
+  cameraOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  cameraHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 20,
+  },
+  closeButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cameraTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  headerSpacer: {
+    width: 44,
+  },
+  cameraContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scanFrame: {
+    width: 280,
+    height: 180,
+    position: 'relative',
+    marginBottom: 32,
+  },
+  corner: {
     position: 'absolute',
-    right: 20,
-    bottom: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 30,
+    height: 30,
+    borderLeftWidth: 4,
+    borderTopWidth: 4,
+    borderColor: '#3B82F6',
+    top: 0,
+    left: 0,
+  },
+  cornerTopRight: {
+    borderLeftWidth: 0,
+    borderRightWidth: 4,
+    top: 0,
+    right: 0,
+    left: 'auto',
+  },
+  cornerBottomLeft: {
+    borderTopWidth: 0,
+    borderBottomWidth: 4,
+    bottom: 0,
+    top: 'auto',
+  },
+  cornerBottomRight: {
+    borderLeftWidth: 0,
+    borderTopWidth: 0,
+    borderRightWidth: 4,
+    borderBottomWidth: 4,
+    bottom: 0,
+    right: 0,
+    top: 'auto',
+    left: 'auto',
+  },
+  scanInstructions: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  cameraFooter: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    alignItems: 'center',
+  },
+  captureButton: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: '#3B82F6',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
+    borderWidth: 4,
+    borderColor: '#FFFFFF',
   },
 });
