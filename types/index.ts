@@ -1,47 +1,5 @@
 export type UserRole = 'tenant' | 'landlord' | 'both';
 
-export type VerificationLevel = 
-  | 'unverified'      // Default state - limited access
-  | 'pending'         // Documents submitted, under review  
-  | 'basic'           // ID and address verified
-  | 'property'        // Property ownership verified
-  | 'premium'         // Full business verification + background check
-
-export type DocumentType = 
-  | 'national_id'
-  | 'passport' 
-  | 'drivers_license'
-  | 'utility_bill'
-  | 'bank_statement'
-  | 'title_deed'
-  | 'lease_agreement'
-  | 'property_tax'
-  | 'business_registration'
-
-export interface VerificationDocument {
-  id: string;
-  type: DocumentType;
-  fileName: string;
-  fileUrl: string;
-  uploadedAt: string;
-  status: 'pending' | 'approved' | 'rejected';
-  rejectionReason?: string;
-  expiryDate?: string;
-  extractedData?: Record<string, any>;
-}
-
-export interface VerificationRequest {
-  id: string;
-  userId: string;
-  level: VerificationLevel;
-  status: 'pending' | 'approved' | 'rejected';
-  documents: VerificationDocument[];
-  submittedAt: string;
-  reviewedAt?: string;
-  reviewedBy?: string;
-  notes?: string;
-}
-
 export type PropertyType = 
   | 'single_room' 
   | 'bedsitter' 
@@ -115,23 +73,8 @@ export interface User {
   photo?: string;
   role: UserRole;
   verified: boolean;
-  verificationLevel: VerificationLevel;
-  verificationBadges: string[];
   rating?: number;
   memberSince: string;
-  lastVerificationCheck?: string;
-  riskScore?: number;
-  permissions: UserPermissions;
-}
-
-export interface UserPermissions {
-  canPostListings: boolean;
-  canAccessTenantData: boolean;
-  canCollectPayments: boolean;
-  canUseBulkOperations: boolean;
-  canAccessAnalytics: boolean;
-  maxListings: number;
-  requiresApproval: boolean;
 }
 
 export interface Vehicle {
