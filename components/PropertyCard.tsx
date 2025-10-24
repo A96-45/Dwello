@@ -1,4 +1,4 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -89,51 +89,53 @@ export default function PropertyCard({
     });
   }, [pan, scale]);
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => isFirst,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return isFirst && (Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5);
-      },
-      onPanResponderGrant: () => {
-        pan.setOffset({
-          x: (pan.x as any)._value,
-          y: (pan.y as any)._value,
-        });
-        pan.setValue({ x: 0, y: 0 });
-      },
-      onPanResponderMove: Animated.event(
-        [null, { dx: pan.x, dy: pan.y }],
-        { useNativeDriver: false }
-      ),
-      onPanResponderRelease: (_, gestureState) => {
-        pan.flattenOffset();
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => isFirst,
+        onMoveShouldSetPanResponder: (_, gestureState) => {
+          return isFirst && (Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5);
+        },
+        onPanResponderGrant: () => {
+          pan.setOffset({
+            x: (pan.x as any)._value,
+            y: (pan.y as any)._value,
+          });
+          pan.setValue({ x: 0, y: 0 });
+        },
+        onPanResponderMove: Animated.event(
+          [null, { dx: pan.x, dy: pan.y }],
+          { useNativeDriver: false }
+        ),
+        onPanResponderRelease: (_, gestureState) => {
+          pan.flattenOffset();
 
-        const absX = Math.abs(gestureState.dx);
-        const absY = Math.abs(gestureState.dy);
+          const absX = Math.abs(gestureState.dx);
+          const absY = Math.abs(gestureState.dy);
 
-        if (absX > SWIPE_THRESHOLD || absY > SWIPE_THRESHOLD) {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          if (absX > absY) {
-            if (gestureState.dx > 0) {
-              animateOut('right', onSwipeRight);
+          if (absX > SWIPE_THRESHOLD || absY > SWIPE_THRESHOLD) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            if (absX > absY) {
+              if (gestureState.dx > 0) {
+                animateOut('right', onSwipeRight);
+              } else {
+                animateOut('left', onSwipeLeft);
+              }
             } else {
-              animateOut('left', onSwipeLeft);
+              if (gestureState.dy > 0) {
+                animateOut('down', onSwipeDown);
+              } else {
+                animateOut('up', onSwipeUp);
+              }
             }
           } else {
-            if (gestureState.dy > 0) {
-              animateOut('down', onSwipeDown);
-            } else {
-              animateOut('up', onSwipeUp);
-            }
+            resetPosition();
           }
-        } else {
-          resetPosition();
-        }
-      },
-      onPanResponderTerminate: resetPosition,
-    })
-  ).current;
+        },
+        onPanResponderTerminate: resetPosition,
+      }),
+    [isFirst, pan, animateOut, resetPosition]
+  );
 
   const handlePress = () => {
     const now = Date.now();
