@@ -25,15 +25,15 @@ interface ExtendedProperty extends Property {
 import AnalyticsCard from '@/components/AnalyticsCard';
 
 const FILTER_CHIPS = [
-  { id: 'location', label: 'Location', icon: '📍' },
-  { id: 'price', label: 'Price', icon: '💰' },
-  { id: 'type', label: 'Type', icon: '🏠' },
-  { id: 'bedrooms', label: 'Bedrooms', icon: '🛏️' },
-  { id: 'amenities', label: 'Amenities', icon: '✨' },
-  { id: 'parking', label: 'Parking', icon: '🅿️' },
-  { id: 'furnished', label: 'Furnished', icon: '🛋️' },
-  { id: 'pets', label: 'Pets', icon: '🐕' },
-  { id: 'sort', label: 'Sort', icon: '📊' },
+  { id: 'type', label: 'House Types', icon: '🏠', priority: true },
+  { id: 'price', label: 'Price Range', icon: '💰', priority: true },
+  { id: 'bedrooms', label: 'Bedrooms', icon: '🛏️', priority: false },
+  { id: 'location', label: 'Location', icon: '📍', priority: false },
+  { id: 'amenities', label: 'Amenities', icon: '✨', priority: false },
+  { id: 'furnished', label: 'Furnished', icon: '🛋️', priority: false },
+  { id: 'parking', label: 'Parking', icon: '🅿️', priority: false },
+  { id: 'pets', label: 'Pets', icon: '🐕', priority: false },
+  { id: 'sort', label: 'Sort', icon: '📊', priority: false },
 ] as const;
 
 export default function HomeScreen() {
@@ -259,23 +259,86 @@ export default function HomeScreen() {
         </View>
       </View>
 
+      {/* Active Filters Summary */}
+      {activeFiltersCount > 0 && (
+        <View style={styles.activeFiltersContainer}>
+          <Text style={styles.activeFiltersTitle}>Active Filters:</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.activeFiltersList}>
+              {filters.propertyTypes && filters.propertyTypes.length > 0 && (
+                <View style={styles.activeFilterTag}>
+                  <Text style={styles.activeFilterTagText}>
+                    🏠 {filters.propertyTypes.length} type{filters.propertyTypes.length > 1 ? 's' : ''}
+                  </Text>
+                </View>
+              )}
+              {(filters.priceMin !== undefined || filters.priceMax !== undefined) && (
+                <View style={styles.activeFilterTag}>
+                  <Text style={styles.activeFilterTagText}>
+                    💰 {filters.priceMin ? `${filters.priceMin/1000}K` : '0'} - {filters.priceMax ? `${filters.priceMax/1000}K` : '∞'}
+                  </Text>
+                </View>
+              )}
+              {filters.bedrooms && filters.bedrooms.length > 0 && (
+                <View style={styles.activeFilterTag}>
+                  <Text style={styles.activeFilterTagText}>
+                    🛏️ {filters.bedrooms.length} bedroom{filters.bedrooms.length > 1 ? 's' : ''}
+                  </Text>
+                </View>
+              )}
+              {filters.amenities && filters.amenities.length > 0 && (
+                <View style={styles.activeFilterTag}>
+                  <Text style={styles.activeFilterTagText}>
+                    ✨ {filters.amenities.length} amenit{filters.amenities.length > 1 ? 'ies' : 'y'}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </ScrollView>
+        </View>
+      )}
+
       <View style={styles.filtersContainer}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filtersContent}
         >
-          {FILTER_CHIPS.map((chip) => (
-            <TouchableOpacity 
-              key={chip.id} 
-              style={styles.filterChip}
-              onPress={() => handleFilterChipPress(chip.id)}
-            >
-              <Text style={styles.filterChipText}>
-                {chip.icon} {chip.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {FILTER_CHIPS.map((chip) => {
+            const isActive = 
+              (chip.id === 'type' && filters.propertyTypes && filters.propertyTypes.length > 0) ||
+              (chip.id === 'price' && (filters.priceMin !== undefined || filters.priceMax !== undefined)) ||
+              (chip.id === 'bedrooms' && filters.bedrooms && filters.bedrooms.length > 0) ||
+              (chip.id === 'amenities' && filters.amenities && filters.amenities.length > 0) ||
+              (chip.id === 'furnished' && filters.furnished && filters.furnished.length > 0) ||
+              (chip.id === 'parking' && filters.parking !== undefined) ||
+              (chip.id === 'pets' && filters.petsAllowed !== undefined);
+
+            return (
+              <TouchableOpacity 
+                key={chip.id} 
+                style={[
+                  styles.filterChip,
+                  chip.priority && styles.priorityFilterChip,
+                  isActive && styles.activeFilterChip
+                ]}
+                onPress={() => handleFilterChipPress(chip.id)}
+              >
+                <Text style={[
+                  styles.filterChipText,
+                  chip.priority && styles.priorityFilterChipText,
+                  isActive && styles.activeFilterChipText
+                ]}>
+                  {chip.icon} {chip.label}
+                </Text>
+                {isActive && (
+                  <View style={styles.activeIndicator}>
+                    <Text style={styles.activeIndicatorText}>•</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
           {activeFiltersCount > 0 && (
             <TouchableOpacity 
               style={styles.clearFiltersChip}
@@ -286,6 +349,20 @@ export default function HomeScreen() {
             </TouchableOpacity>
           )}
         </ScrollView>
+      </View>
+
+      {/* Properties count */}
+      <View style={styles.propertiesCountContainer}>
+        <Text style={styles.propertiesCountText}>
+          {properties.length === 0 ? 'No properties found' : 
+           properties.length === 1 ? '1 property found' :
+           `${properties.length} properties found`}
+        </Text>
+        {properties.length > 0 && (
+          <Text style={styles.propertiesCountSubtext}>
+            Swipe to explore • Double tap to save
+          </Text>
+        )}
       </View>
 
       <View style={styles.cardContainer}>
@@ -470,11 +547,84 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
     marginRight: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  priorityFilterChip: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#3B82F6',
+    borderWidth: 2,
+  },
+  activeFilterChip: {
+    backgroundColor: '#3B82F6',
+    borderColor: '#3B82F6',
   },
   filterChipText: {
     fontSize: 14,
     fontWeight: '600' as const,
     color: '#374151',
+  },
+  priorityFilterChipText: {
+    color: '#3B82F6',
+    fontWeight: '700' as const,
+  },
+  activeFilterChipText: {
+    color: '#FFFFFF',
+    fontWeight: '700' as const,
+  },
+  activeIndicator: {
+    marginLeft: 6,
+  },
+  activeIndicatorText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700' as const,
+  },
+  activeFiltersContainer: {
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  activeFiltersTitle: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+    marginBottom: 8,
+  },
+  activeFiltersList: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  activeFilterTag: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  activeFilterTagText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+  propertiesCountContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  propertiesCountText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#111827',
+    marginBottom: 2,
+  },
+  propertiesCountSubtext: {
+    fontSize: 12,
+    color: '#6B7280',
   },
   clearFiltersChip: {
     paddingHorizontal: 12,

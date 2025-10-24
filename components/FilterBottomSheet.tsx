@@ -22,24 +22,25 @@ interface FilterBottomSheetProps {
   onApplyFilters: (filters: FilterOptions) => void;
 }
 
-const PROPERTY_TYPES: { value: PropertyType; label: string }[] = [
-  { value: 'single_room', label: '🚪 Single Room' },
-  { value: 'bedsitter', label: '🛏️ Bedsitter' },
-  { value: 'one_bedroom', label: '🏠 1 Bedroom' },
-  { value: 'two_bedroom', label: '🏘️ 2 Bedroom' },
-  { value: 'three_bedroom', label: '🏡 3 Bedroom' },
-  { value: 'four_plus_bedroom', label: '🏰 4+ Bedroom' },
-  { value: 'studio', label: '🏢 Studio' },
-  { value: 'bungalow', label: '🏰 Bungalow' },
-  { value: 'bnb', label: '🏨 BnB/Short Stay' },
+const PROPERTY_TYPES: { value: PropertyType; label: string; description: string }[] = [
+  { value: 'bedsitter', label: '🛏️ Bedsitter', description: 'Single room with kitchenette' },
+  { value: 'one_bedroom', label: '🏠 1 Bedroom', description: 'Separate bedroom and living area' },
+  { value: 'two_bedroom', label: '🏘️ 2 Bedroom', description: 'Two bedrooms with living area' },
+  { value: 'three_bedroom', label: '🏡 3 Bedroom', description: 'Three bedrooms, ideal for families' },
+  { value: 'four_plus_bedroom', label: '🏰 4+ Bedroom', description: 'Large family homes' },
+  { value: 'single_room', label: '🚪 Single Room', description: 'Basic single room accommodation' },
+  { value: 'studio', label: '🏢 Studio', description: 'Open plan living space' },
+  { value: 'bungalow', label: '🏰 Bungalow', description: 'Single-story detached house' },
+  { value: 'bnb', label: '🏨 BnB/Short Stay', description: 'Short-term accommodation' },
 ];
 
 const PRICE_RANGES = [
-  { label: 'Under 20K', min: 0, max: 20000 },
-  { label: '20-40K', min: 20000, max: 40000 },
-  { label: '40-60K', min: 40000, max: 60000 },
-  { label: '60-100K', min: 60000, max: 100000 },
-  { label: '100K+', min: 100000, max: 1000000 },
+  { label: 'Under 15K', min: 0, max: 15000, description: 'Budget-friendly options' },
+  { label: '15K - 25K', min: 15000, max: 25000, description: 'Affordable range' },
+  { label: '25K - 40K', min: 25000, max: 40000, description: 'Mid-range properties' },
+  { label: '40K - 60K', min: 40000, max: 60000, description: 'Premium options' },
+  { label: '60K - 100K', min: 60000, max: 100000, description: 'High-end properties' },
+  { label: '100K+', min: 100000, max: 1000000, description: 'Luxury properties' },
 ];
 
 const BEDROOM_OPTIONS = [1, 2, 3, 4, 5];
@@ -148,9 +149,10 @@ export default function FilterBottomSheet({
       case 'type':
         return (
           <View style={styles.content}>
-            <Text style={styles.sectionTitle}>Select Property Types</Text>
+            <Text style={styles.sectionTitle}>Select House Types</Text>
+            <Text style={styles.sectionSubtitle}>Choose the type of accommodation you're looking for</Text>
             <View style={styles.optionsList}>
-              {PROPERTY_TYPES.map(({ value, label }) => {
+              {PROPERTY_TYPES.map(({ value, label, description }) => {
                 const isSelected = localFilters.propertyTypes?.includes(value);
                 return (
                   <TouchableOpacity
@@ -158,9 +160,14 @@ export default function FilterBottomSheet({
                     style={[styles.option, isSelected && styles.optionSelected]}
                     onPress={() => togglePropertyType(value)}
                   >
-                    <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>
-                      {label}
-                    </Text>
+                    <View style={styles.optionContent}>
+                      <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>
+                        {label}
+                      </Text>
+                      <Text style={[styles.optionDescription, isSelected && styles.optionDescriptionSelected]}>
+                        {description}
+                      </Text>
+                    </View>
                     {isSelected && <Text style={styles.checkmark}>✓</Text>}
                   </TouchableOpacity>
                 );
@@ -173,8 +180,9 @@ export default function FilterBottomSheet({
         return (
           <View style={styles.content}>
             <Text style={styles.sectionTitle}>Price Range (KES/month)</Text>
+            <Text style={styles.sectionSubtitle}>Select your budget range for monthly rent</Text>
             <View style={styles.optionsList}>
-              {PRICE_RANGES.map(({ label, min, max }) => {
+              {PRICE_RANGES.map(({ label, min, max, description }) => {
                 const isSelected =
                   localFilters.priceMin === min && localFilters.priceMax === max;
                 return (
@@ -183,9 +191,14 @@ export default function FilterBottomSheet({
                     style={[styles.option, isSelected && styles.optionSelected]}
                     onPress={() => setPriceRange(min, max)}
                   >
-                    <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>
-                      {label}
-                    </Text>
+                    <View style={styles.optionContent}>
+                      <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>
+                        {label}
+                      </Text>
+                      <Text style={[styles.optionDescription, isSelected && styles.optionDescriptionSelected]}>
+                        {description}
+                      </Text>
+                    </View>
                     {isSelected && <Text style={styles.checkmark}>✓</Text>}
                   </TouchableOpacity>
                 );
@@ -198,6 +211,7 @@ export default function FilterBottomSheet({
         return (
           <View style={styles.content}>
             <Text style={styles.sectionTitle}>Number of Bedrooms</Text>
+            <Text style={styles.sectionSubtitle}>Select how many bedrooms you need</Text>
             <View style={styles.optionsList}>
               {BEDROOM_OPTIONS.map(count => {
                 const isSelected = localFilters.bedrooms?.includes(count);
@@ -207,9 +221,18 @@ export default function FilterBottomSheet({
                     style={[styles.option, isSelected && styles.optionSelected]}
                     onPress={() => toggleBedroom(count)}
                   >
-                    <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>
-                      {count} Bedroom{count > 1 ? 's' : ''}
-                    </Text>
+                    <View style={styles.optionContent}>
+                      <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>
+                        {count} Bedroom{count > 1 ? 's' : ''}
+                      </Text>
+                      <Text style={[styles.optionDescription, isSelected && styles.optionDescriptionSelected]}>
+                        {count === 1 ? 'Perfect for singles or couples' : 
+                         count === 2 ? 'Great for small families' :
+                         count === 3 ? 'Ideal for families' :
+                         count === 4 ? 'Large family accommodation' :
+                         'Spacious family home'}
+                      </Text>
+                    </View>
                     {isSelected && <Text style={styles.checkmark}>✓</Text>}
                   </TouchableOpacity>
                 );
@@ -222,6 +245,7 @@ export default function FilterBottomSheet({
         return (
           <View style={styles.content}>
             <Text style={styles.sectionTitle}>Amenities</Text>
+            <Text style={styles.sectionSubtitle}>Select the amenities that are important to you</Text>
             <View style={styles.optionsList}>
               {AMENITIES_OPTIONS.map(({ value, label }) => {
                 const isSelected = localFilters.amenities?.includes(value);
@@ -231,9 +255,11 @@ export default function FilterBottomSheet({
                     style={[styles.option, isSelected && styles.optionSelected]}
                     onPress={() => toggleAmenity(value)}
                   >
-                    <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>
-                      {label}
-                    </Text>
+                    <View style={styles.optionContent}>
+                      <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>
+                        {label}
+                      </Text>
+                    </View>
                     {isSelected && <Text style={styles.checkmark}>✓</Text>}
                   </TouchableOpacity>
                 );
@@ -457,10 +483,16 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600' as const,
+    fontSize: 18,
+    fontWeight: '700' as const,
     color: '#111827',
-    marginBottom: 16,
+    marginBottom: 8,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 20,
+    lineHeight: 20,
   },
   optionsList: {
     gap: 12,
@@ -474,6 +506,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
     backgroundColor: '#FFFFFF',
+  },
+  optionContent: {
+    flex: 1,
+  },
+  optionDescription: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
+  optionDescriptionSelected: {
+    color: '#93C5FD',
   },
   optionSelected: {
     borderColor: '#3B82F6',
