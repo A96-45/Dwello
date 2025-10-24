@@ -1,14 +1,7 @@
-import React, { useEffect } from 'react';
-import { useRouter } from 'expo-router';
+import React from 'react';
+import SmartParkScreen from '../smartpark';
 
 export default function SmartParkTab() {
-  const router = useRouter();
-
-  useEffect(() => {
-    // Redirect to the main SmartPark screen
-    router.replace('/smartpark');
-  }, []);
-
-  return null;
+  return <SmartParkScreen />;
 }
 

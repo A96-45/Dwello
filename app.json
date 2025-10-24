@@ -15,14 +15,20 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.dwello.rental-platform"
+      "bundleIdentifier": "com.dwello.rental-platform",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow camera access to scan license plates and documents"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.dwello.rental_platform"
+      "package": "com.dwello.rental_platform",
+      "permissions": [
+        "CAMERA"
+      ]
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
