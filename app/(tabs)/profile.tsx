@@ -21,6 +21,7 @@ import {
   LogOut,
   Home,
   Building2,
+  Coins,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useApp } from '@/contexts/AppContext';
@@ -42,7 +43,26 @@ export default function ProfileScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       
       const newRole = userRole === 'tenant' ? 'landlord' : 'tenant';
-      await switchRole(newRole);
+      const result = await switchRole(newRole);
+      
+      if (!result.success) {
+        // Show blockchain verification required alert
+        Alert.alert(
+          '🔗 Blockchain Verification Required',
+          result.error || 'You need to verify property ownership on the blockchain to become a landlord.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Verify Property', 
+              style: 'default',
+              onPress: () => router.push('/blockchain-verification')
+            }
+          ]
+        );
+        
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        return;
+      }
       
       // Small delay to let the context update
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -89,11 +109,11 @@ export default function ProfileScreen() {
           disabled={isSwitchingRole}
         >
           {isSwitchingRole ? (
-            <ActivityIndicator size="small" color="#3B82F6" />
+            <ActivityIndicator size="small" color="#FFFFFF" />
           ) : userRole === 'tenant' ? (
-            <Building2 size={20} color="#3B82F6" />
+            <Building2 size={20} color="#FFFFFF" />
           ) : (
-            <Home size={20} color="#3B82F6" />
+            <Home size={20} color="#FFFFFF" />
           )}
           <View style={styles.switchButtonContent}>
             <Text style={[styles.switchButtonText, isSwitchingRole && styles.switchButtonTextDisabled]}>
@@ -104,7 +124,7 @@ export default function ProfileScreen() {
             </Text>
             {!isSwitchingRole && (
               <Text style={[styles.switchButtonSubtext, isSwitchingRole && styles.switchButtonTextDisabled]}>
-                {userRole === 'tenant' ? 'Go to Dashboard' : 'Go to Home'}
+                {userRole === 'tenant' ? 'Requires blockchain verification' : 'Go to Home'}
               </Text>
             )}
           </View>
@@ -191,6 +211,24 @@ export default function ProfileScreen() {
             <Text style={styles.menuText}>Transaction History</Text>
           </TouchableOpacity>
         </View>
+
+        {(userRole === 'landlord' || userRole === 'both') && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Blockchain Verification</Text>
+            <TouchableOpacity 
+              style={styles.menuItem}
+              onPress={() => router.push('/blockchain-verification')}
+            >
+              <View style={styles.menuIcon}>
+                <Coins size={22} color="#3B82F6" />
+              </View>
+              <View style={styles.menuContent}>
+                <Text style={styles.menuText}>Property NFTs</Text>
+                <Text style={styles.menuSubtext}>Manage blockchain-verified properties</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
@@ -321,31 +359,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#3B82F6',
     paddingVertical: 16,
     paddingHorizontal: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#DBEAFE',
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#3B82F6',
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   switchButtonContent: {
     alignItems: 'center',
   },
   switchButtonText: {
-    fontSize: 15,
-    fontWeight: '600' as const,
-    color: '#3B82F6',
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
   },
   switchButtonDisabled: {
-    backgroundColor: '#F3F4F6',
-    opacity: 0.7,
+    backgroundColor: '#9CA3AF',
+    borderColor: '#9CA3AF',
+    shadowOpacity: 0,
   },
   switchButtonTextDisabled: {
-    color: '#9CA3AF',
+    color: '#FFFFFF',
   },
   switchButtonSubtext: {
     fontSize: 12,
-    color: '#6B7280',
+    color: '#E5E7EB',
     marginTop: 2,
   },
   content: {
@@ -367,29 +411,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     padding: 16,
-    borderRadius: 12,
-    marginBottom: 8,
+    borderRadius: 16,
+    marginBottom: 12,
     gap: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   menuIcon: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     borderRadius: 12,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   menuContent: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
   },
   menuText: {
-    flex: 1,
     fontSize: 16,
-    fontWeight: '500' as const,
-    color: '#374151',
+    fontWeight: '600' as const,
+    color: '#111827',
+    marginBottom: 2,
+  },
+  menuSubtext: {
+    fontSize: 13,
+    color: '#6B7280',
   },
   badge: {
     backgroundColor: '#3B82F6',

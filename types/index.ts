@@ -1,5 +1,34 @@
 export type UserRole = 'tenant' | 'landlord' | 'both';
 
+export interface PropertyNFT {
+  id: string;
+  parcelNumber: string;
+  tokenId: string;
+  ownerAddress: string;
+  ownerName: string;
+  mintedAt: string;
+  blockchainTxHash: string;
+  verified: boolean;
+  metadata: {
+    location: string;
+    size: string;
+    propertyType: string;
+    legalDescription: string;
+  };
+}
+
+export interface BlockchainVerification {
+  id: string;
+  userId: string;
+  parcelNumber: string;
+  status: 'pending' | 'verified' | 'rejected' | 'duplicate';
+  submittedAt: string;
+  verifiedAt?: string;
+  nftTokenId?: string;
+  blockchainAddress?: string;
+  rejectionReason?: string;
+}
+
 export type PropertyType = 
   | 'single_room' 
   | 'bedsitter' 
@@ -73,6 +102,9 @@ export interface User {
   photo?: string;
   role: UserRole;
   verified: boolean;
+  blockchainVerified: boolean;
+  blockchainAddress?: string;
+  ownedPropertyNFTs: string[];
   rating?: number;
   memberSince: string;
 }
