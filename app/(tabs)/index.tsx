@@ -9,13 +9,14 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { X, Search, Bell, Map, Calendar } from 'lucide-react-native';
+import { X, Search, Bell, Map, Calendar, DollarSign, Home as HomeIcon, Eye, MessageCircle, TrendingUp, Heart } from 'lucide-react-native';
 import PropertyCard from '@/components/PropertyCard';
 import FilterBottomSheet from '@/components/FilterBottomSheet';
 import { useApp } from '@/contexts/AppContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { MOCK_PROPERTIES } from '@/mocks/properties';
 import type { FilterOptions } from '@/types';
+import AnalyticsCard from '@/components/AnalyticsCard';
 
 const FILTER_CHIPS = [
   { id: 'location', label: 'Location', icon: '📍' },
@@ -165,22 +166,28 @@ export default function HomeScreen() {
     v !== undefined && v !== null && (Array.isArray(v) ? v.length > 0 : true)
   ).length;
 
-  // Show landlord dashboard if user is a landlord
+  // Show landlord analytics directly if user is a landlord
   if (isLandlord) {
+    const ANALYTICS = {
+      totalRevenue: 245000,
+      revenueChange: 12.5,
+      totalProperties: 8,
+      propertiesChange: 0,
+      totalViews: 2847,
+      viewsChange: 8.3,
+      totalInquiries: 23,
+      inquiriesChange: -5.2,
+      occupancyRate: 87.5,
+      occupancyChange: 2.1,
+      averageRating: 4.8,
+      ratingChange: 0.3,
+    };
+
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={[styles.container, { paddingTop: insets.top }]}> 
         <View style={styles.header}>
           <Text style={styles.logo}>Dwello</Text>
           <View style={styles.headerRight}>
-            <TouchableOpacity 
-              style={styles.dashboardButton}
-              onPress={() => {
-                Haptics.selectionAsync();
-                router.push('/landlord-dashboard');
-              }}
-            >
-              <Text style={styles.dashboardButtonText}>Dashboard</Text>
-            </TouchableOpacity>
             <TouchableOpacity 
               style={styles.searchButton}
               onPress={() => {
@@ -192,20 +199,62 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         </View>
-        <View style={styles.landlordContent}>
-          <Text style={styles.landlordTitle}>Welcome back!</Text>
-          <Text style={styles.landlordSubtitle}>Manage your properties and track performance</Text>
-          <TouchableOpacity 
-            style={styles.dashboardCard}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              router.push('/landlord-dashboard');
-            }}
-          >
-            <Text style={styles.dashboardCardTitle}>View Full Dashboard</Text>
-            <Text style={styles.dashboardCardSubtitle}>Analytics, properties, and inquiries</Text>
-          </TouchableOpacity>
-        </View>
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+          <View style={{ padding: 20 }}>
+            <Text style={styles.landlordTitle}>Analytics Overview</Text>
+            <Text style={styles.landlordSubtitle}>Key metrics at a glance</Text>
+            <View style={styles.analyticsGrid}> 
+              <AnalyticsCard
+                title="Total Revenue"
+                value={`KES ${ANALYTICS.totalRevenue.toLocaleString()}`}
+                change={ANALYTICS.revenueChange}
+                changeType="increase"
+                subtitle="This month"
+                icon={<DollarSign size={20} color="#10B981" />}
+              />
+              <AnalyticsCard
+                title="Properties"
+                value={ANALYTICS.totalProperties}
+                change={ANALYTICS.propertiesChange}
+                changeType="neutral"
+                subtitle="Active listings"
+                icon={<HomeIcon size={20} color="#3B82F6" />}
+              />
+              <AnalyticsCard
+                title="Total Views"
+                value={ANALYTICS.totalViews.toLocaleString()}
+                change={ANALYTICS.viewsChange}
+                changeType="increase"
+                subtitle="All time"
+                icon={<Eye size={20} color="#8B5CF6" />}
+              />
+              <AnalyticsCard
+                title="Inquiries"
+                value={ANALYTICS.totalInquiries}
+                change={ANALYTICS.inquiriesChange}
+                changeType="decrease"
+                subtitle="This month"
+                icon={<MessageCircle size={20} color="#F59E0B" />}
+              />
+              <AnalyticsCard
+                title="Occupancy Rate"
+                value={`${ANALYTICS.occupancyRate}%`}
+                change={ANALYTICS.occupancyChange}
+                changeType="increase"
+                subtitle="Current"
+                icon={<TrendingUp size={20} color="#10B981" />}
+              />
+              <AnalyticsCard
+                title="Average Rating"
+                value={ANALYTICS.averageRating}
+                change={ANALYTICS.ratingChange}
+                changeType="increase"
+                subtitle="From tenants"
+                icon={<Heart size={20} color="#EF4444" />}
+              />
+            </View>
+          </View>
+        </ScrollView>
       </View>
     );
   }
@@ -442,6 +491,12 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     textAlign: 'center',
     marginBottom: 32,
+  },
+  analyticsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    marginTop: 12,
   },
   dashboardCard: {
     backgroundColor: '#FFFFFF',
