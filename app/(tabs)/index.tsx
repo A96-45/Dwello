@@ -15,7 +15,12 @@ import FilterBottomSheet from '@/components/FilterBottomSheet';
 import { useApp } from '@/contexts/AppContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { MOCK_PROPERTIES } from '@/mocks/properties';
-import type { FilterOptions } from '@/types';
+import type { FilterOptions, Property } from '@/types';
+
+// Extended property type for endless scrolling
+interface ExtendedProperty extends Property {
+  originalId?: string;
+}
 import AnalyticsCard from '@/components/AnalyticsCard';
 
 const FILTER_CHIPS = [
@@ -39,6 +44,7 @@ export default function HomeScreen() {
   const [viewedProperties, setViewedProperties] = useState<string[]>([]);
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
   const [activeFilterType, setActiveFilterType] = useState<typeof FILTER_CHIPS[number]['id'] | null>(null);
+  const [cardStack, setCardStack] = useState<ExtendedProperty[]>([]);
   
   const properties = useMemo(() => {
     let filtered = MOCK_PROPERTIES.filter(p => p.status === 'available');
@@ -78,35 +84,86 @@ export default function HomeScreen() {
     return filtered;
   }, [filters]);
 
-  const currentProperty = properties[currentIndex];
+  // Create endless card stack by repeating properties
+  const createEndlessStack = useCallback(() => {
+    if (properties.length === 0) return [];
+    
+    // Create a large stack by repeating the properties array multiple times
+    const stackSize = Math.max(50, properties.length * 10); // At least 50 cards
+    const stack = [];
+    
+    for (let i = 0; i < stackSize; i++) {
+      const property = properties[i % properties.length];
+      // Add a unique key to differentiate repeated properties
+      stack.push({
+        ...property,
+        id: `${property.id}_${Math.floor(i / properties.length)}_${i}`,
+        originalId: property.id,
+      });
+    }
+    
+    return stack;
+  }, [properties]);
+
+  // Initialize card stack when properties change
+  React.useEffect(() => {
+    const newStack = createEndlessStack();
+    setCardStack(newStack);
+    setCurrentIndex(0);
+    setViewedProperties([]);
+  }, [createEndlessStack]);
+
+  const currentProperty = cardStack[currentIndex];
 
   const handlePrevious = useCallback(() => {
-    setCurrentIndex(prev => (prev - 1 + properties.length) % properties.length);
-  }, [properties.length]);
+    setCurrentIndex(prev => Math.max(0, prev - 1));
+  }, []);
 
   const handleSwipe = useCallback((direction: 'left' | 'right' | 'up' | 'down') => {
-    if (currentProperty && !viewedProperties.includes(currentProperty.id)) {
-      setViewedProperties(prev => [...prev, currentProperty.id]);
+    if (currentProperty && !viewedProperties.includes(currentProperty.originalId || currentProperty.id)) {
+      setViewedProperties(prev => [...prev, currentProperty.originalId || currentProperty.id]);
     }
     
     if (direction === 'down') {
       handlePrevious();
     } else {
-      setCurrentIndex(prev => (prev + 1) % properties.length);
+      setCurrentIndex(prev => {
+        const nextIndex = prev + 1;
+        
+        // If we're getting close to the end of our stack, extend it
+        if (nextIndex >= cardStack.length - 10 && properties.length > 0) {
+          const newCards = [];
+          const startIndex = cardStack.length;
+          
+          // Add 20 more cards to the stack
+          for (let i = 0; i < 20; i++) {
+            const property = properties[i % properties.length];
+            newCards.push({
+              ...property,
+              id: `${property.id}_${Math.floor((startIndex + i) / properties.length)}_${startIndex + i}`,
+              originalId: property.id,
+            });
+          }
+          
+          setCardStack(prevStack => [...prevStack, ...newCards]);
+        }
+        
+        return nextIndex;
+      });
     }
-  }, [currentProperty, properties.length, viewedProperties, handlePrevious]);
+  }, [currentProperty, cardStack.length, properties, viewedProperties, handlePrevious]);
 
 
 
   const handleCardPress = useCallback(() => {
     if (currentProperty) {
-      router.push(`/property/${currentProperty.id}`);
+      router.push(`/property/${currentProperty.originalId || currentProperty.id}`);
     }
   }, [currentProperty, router]);
 
   const handleDoubleTap = useCallback(() => {
     if (currentProperty) {
-      toggleSaveProperty(currentProperty.id);
+      toggleSaveProperty(currentProperty.originalId || currentProperty.id);
     }
   }, [currentProperty, toggleSaveProperty]);
 
@@ -118,18 +175,16 @@ export default function HomeScreen() {
 
   const handleApplyFilters = useCallback((newFilters: FilterOptions) => {
     updateFilters(newFilters);
-    setCurrentIndex(0);
-    setViewedProperties([]);
+    // Reset will be handled by useEffect when properties change
   }, [updateFilters]);
 
   const handleClearFilters = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await updateFilters({});
-    setCurrentIndex(0);
-    setViewedProperties([]);
+    // Reset will be handled by useEffect when properties change
   }, [updateFilters]);
 
-  const renderCard = (property: typeof properties[0], index: number) => {
+  const renderCard = (property: ExtendedProperty, index: number) => {
     const isFirst = index === currentIndex;
     const position = index - currentIndex;
     
@@ -151,12 +206,12 @@ export default function HomeScreen() {
         onSwipeDown={() => handleSwipe('down')}
         onPress={handleCardPress}
         onDoubleTap={handleDoubleTap}
-        isSaved={isSaved(property.id)}
-        onToggleSave={() => toggleSaveProperty(property.id)}
+        isSaved={isSaved(property.originalId || property.id)}
+        onToggleSave={() => toggleSaveProperty(property.originalId || property.id)}
         style={{
           transform: [{ scale }, { translateY }],
           opacity,
-          zIndex: properties.length - index,
+          zIndex: cardStack.length - index,
         }}
       />
     );
@@ -343,7 +398,7 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.cardContainer}>
-        {properties.length === 0 ? (
+        {cardStack.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>No properties found</Text>
             <Text style={styles.emptySubtitle}>Try adjusting your filters</Text>
@@ -354,24 +409,11 @@ export default function HomeScreen() {
               <Text style={styles.resetButtonText}>Clear Filters</Text>
             </TouchableOpacity>
           </View>
-        ) : false ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>🎉</Text>
-            <Text style={styles.emptyTitle}>You&apos;ve seen all properties!</Text>
-            <Text style={styles.emptySubtitle}>{viewedProperties.length} properties viewed</Text>
-            <TouchableOpacity
-              style={styles.resetButton}
-              onPress={() => {
-                setCurrentIndex(0);
-                setViewedProperties([]);
-              }}
-            >
-              <Text style={styles.resetButtonText}>Start Over</Text>
-            </TouchableOpacity>
-          </View>
         ) : (
           <>
-            {properties.map((property, index) => renderCard(property, index))}
+            {cardStack.slice(currentIndex, currentIndex + 3).map((property, index) => 
+              renderCard(property, currentIndex + index)
+            )}
           </>
         )}
       </View>
@@ -383,12 +425,12 @@ export default function HomeScreen() {
               <View
                 style={[
                   styles.progressFill,
-                  { width: `${((currentIndex + 1) / properties.length) * 100}%` },
+                  { width: properties.length > 0 ? `${Math.min(((currentIndex + 1) / properties.length) * 100, 100)}%` : '0%' },
                 ]}
               />
             </View>
             <Text style={styles.progressText}>
-              Property {currentIndex + 1} of {properties.length}
+              Property {currentIndex + 1} of {properties.length > 0 ? '∞' : 0}
             </Text>
           </View>
         </View>
