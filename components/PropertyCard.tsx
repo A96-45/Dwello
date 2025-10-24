@@ -14,7 +14,8 @@ import { Heart, MoreVertical, MapPin, Bed, Bath, Square, Car, Wifi, Shield } fro
 import type { Property } from '@/types';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const SWIPE_THRESHOLD = 80;
+const SWIPE_THRESHOLD = 120;
+const VELOCITY_THRESHOLD = 0.3;
 
 interface PropertyCardProps {
   property: Property;
@@ -111,17 +112,27 @@ export default function PropertyCard({
 
         const absX = Math.abs(gestureState.dx);
         const absY = Math.abs(gestureState.dy);
+        const absVx = Math.abs(gestureState.vx);
+        const absVy = Math.abs(gestureState.vy);
 
-        if (absX > SWIPE_THRESHOLD || absY > SWIPE_THRESHOLD) {
+        // Check if swipe threshold is met by distance OR velocity
+        const shouldSwipe = absX > SWIPE_THRESHOLD || absY > SWIPE_THRESHOLD || 
+                           absVx > VELOCITY_THRESHOLD || absVy > VELOCITY_THRESHOLD;
+
+        if (shouldSwipe) {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          if (absX > absY) {
-            if (gestureState.dx > 0) {
+          
+          // Determine direction based on both distance and velocity
+          if (absX > absY || absVx > absVy) {
+            // Horizontal swipe
+            if (gestureState.dx > 0 || gestureState.vx > 0) {
               animateOut('right', onSwipeRight);
             } else {
               animateOut('left', onSwipeLeft);
             }
           } else {
-            if (gestureState.dy > 0) {
+            // Vertical swipe
+            if (gestureState.dy > 0 || gestureState.vy > 0) {
               animateOut('down', onSwipeDown);
             } else {
               animateOut('up', onSwipeUp);
@@ -185,6 +196,18 @@ export default function PropertyCard({
     extrapolate: 'clamp',
   });
 
+  const likeOpacity = pan.x.interpolate({
+    inputRange: [0, SCREEN_WIDTH / 4],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+
+  const nopeOpacity = pan.x.interpolate({
+    inputRange: [-SCREEN_WIDTH / 4, 0],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+
   const cardStyle = isFirst
     ? {
         transform: [
@@ -205,6 +228,18 @@ export default function PropertyCard({
         <Image source={{ uri: property.images[0] }} style={styles.image} resizeMode="cover" />
         
         <View style={styles.gradient}>
+          {/* Swipe feedback overlays */}
+          {isFirst && (
+            <>
+              <Animated.View style={[styles.swipeOverlay, styles.likeOverlay, { opacity: likeOpacity }]}>
+                <Text style={styles.swipeText}>LIKE</Text>
+              </Animated.View>
+              <Animated.View style={[styles.swipeOverlay, styles.nopeOverlay, { opacity: nopeOpacity }]}>
+                <Text style={styles.swipeText}>NOPE</Text>
+              </Animated.View>
+            </>
+          )}
+          
           <View style={styles.topOverlay}>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor() }]}>
               <Text style={styles.statusText}>{getStatusText()}</Text>
@@ -471,5 +506,31 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: 'rgba(255,255,255,0.9)',
     fontWeight: '500' as const,
+  },
+  // Swipe feedback styles
+  swipeOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  likeOverlay: {
+    backgroundColor: 'rgba(16, 185, 129, 0.8)',
+  },
+  nopeOverlay: {
+    backgroundColor: 'rgba(239, 68, 68, 0.8)',
+  },
+  swipeText: {
+    fontSize: 48,
+    fontWeight: '900' as const,
+    color: '#FFFFFF',
+    letterSpacing: 4,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
   },
 });

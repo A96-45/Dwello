@@ -9,7 +9,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { X, Search, Bell, Map, Calendar } from 'lucide-react-native';
+import { X, Search, Bell, Map, Calendar, Plus, BarChart3, DollarSign, TrendingUp, Users, Eye, Heart, MessageCircle } from 'lucide-react-native';
 import PropertyCard from '@/components/PropertyCard';
 import FilterBottomSheet from '@/components/FilterBottomSheet';
 import { useApp } from '@/contexts/AppContext';
@@ -91,7 +91,11 @@ export default function HomeScreen() {
     if (direction === 'down') {
       handlePrevious();
     } else {
-      setCurrentIndex(prev => (prev + 1) % properties.length);
+      // Enable infinite scroll - when reaching the end, start from beginning
+      setCurrentIndex(prev => {
+        const nextIndex = prev + 1;
+        return nextIndex >= properties.length ? 0 : nextIndex;
+      });
     }
   }, [currentProperty, properties.length, viewedProperties, handlePrevious]);
 
@@ -173,15 +177,6 @@ export default function HomeScreen() {
           <Text style={styles.logo}>Dwello</Text>
           <View style={styles.headerRight}>
             <TouchableOpacity 
-              style={styles.dashboardButton}
-              onPress={() => {
-                Haptics.selectionAsync();
-                router.push('/landlord-dashboard');
-              }}
-            >
-              <Text style={styles.dashboardButtonText}>Dashboard</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
               style={styles.searchButton}
               onPress={() => {
                 Haptics.selectionAsync();
@@ -192,20 +187,135 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         </View>
-        <View style={styles.landlordContent}>
-          <Text style={styles.landlordTitle}>Welcome back!</Text>
-          <Text style={styles.landlordSubtitle}>Manage your properties and track performance</Text>
-          <TouchableOpacity 
-            style={styles.dashboardCard}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              router.push('/landlord-dashboard');
-            }}
-          >
-            <Text style={styles.dashboardCardTitle}>View Full Dashboard</Text>
-            <Text style={styles.dashboardCardSubtitle}>Analytics, properties, and inquiries</Text>
-          </TouchableOpacity>
-        </View>
+        
+        <ScrollView style={styles.landlordScrollView} showsVerticalScrollIndicator={false}>
+          <View style={styles.landlordHeader}>
+            <Text style={styles.landlordTitle}>Analytics Dashboard</Text>
+            <Text style={styles.landlordSubtitle}>Track your property performance</Text>
+          </View>
+
+          {/* Analytics Grid */}
+          <View style={styles.analyticsGrid}>
+            <View style={styles.analyticsCard}>
+              <View style={styles.analyticsCardHeader}>
+                <DollarSign size={24} color="#10B981" />
+                <Text style={styles.analyticsValue}>KES 245K</Text>
+              </View>
+              <Text style={styles.analyticsLabel}>Total Revenue</Text>
+              <Text style={styles.analyticsChange}>+12.5% this month</Text>
+            </View>
+
+            <View style={styles.analyticsCard}>
+              <View style={styles.analyticsCardHeader}>
+                <Home size={24} color="#3B82F6" />
+                <Text style={styles.analyticsValue}>8</Text>
+              </View>
+              <Text style={styles.analyticsLabel}>Properties</Text>
+              <Text style={styles.analyticsChange}>Active listings</Text>
+            </View>
+
+            <View style={styles.analyticsCard}>
+              <View style={styles.analyticsCardHeader}>
+                <Eye size={24} color="#8B5CF6" />
+                <Text style={styles.analyticsValue}>2.8K</Text>
+              </View>
+              <Text style={styles.analyticsLabel}>Total Views</Text>
+              <Text style={styles.analyticsChange}>+8.3% this week</Text>
+            </View>
+
+            <View style={styles.analyticsCard}>
+              <View style={styles.analyticsCardHeader}>
+                <MessageCircle size={24} color="#F59E0B" />
+                <Text style={styles.analyticsValue}>23</Text>
+              </View>
+              <Text style={styles.analyticsLabel}>Inquiries</Text>
+              <Text style={styles.analyticsChange}>-5.2% this month</Text>
+            </View>
+
+            <View style={styles.analyticsCard}>
+              <View style={styles.analyticsCardHeader}>
+                <TrendingUp size={24} color="#10B981" />
+                <Text style={styles.analyticsValue}>87.5%</Text>
+              </View>
+              <Text style={styles.analyticsLabel}>Occupancy Rate</Text>
+              <Text style={styles.analyticsChange}>+2.1% this month</Text>
+            </View>
+
+            <View style={styles.analyticsCard}>
+              <View style={styles.analyticsCardHeader}>
+                <Heart size={24} color="#EF4444" />
+                <Text style={styles.analyticsValue}>4.8</Text>
+              </View>
+              <Text style={styles.analyticsLabel}>Avg Rating</Text>
+              <Text style={styles.analyticsChange}>+0.3 this month</Text>
+            </View>
+          </View>
+
+          {/* Quick Actions */}
+          <View style={styles.quickActionsSection}>
+            <Text style={styles.sectionTitle}>Quick Actions</Text>
+            <View style={styles.quickActionsGrid}>
+              <TouchableOpacity 
+                style={styles.quickActionCard}
+                onPress={() => router.push('/property/create')}
+              >
+                <Plus size={24} color="#3B82F6" />
+                <Text style={styles.quickActionText}>Add Property</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.quickActionCard}
+                onPress={() => router.push('/landlord-dashboard')}
+              >
+                <BarChart3 size={24} color="#10B981" />
+                <Text style={styles.quickActionText}>Full Dashboard</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.quickActionCard}>
+                <MessageCircle size={24} color="#F59E0B" />
+                <Text style={styles.quickActionText}>Messages</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Recent Activity */}
+          <View style={styles.recentActivitySection}>
+            <Text style={styles.sectionTitle}>Recent Activity</Text>
+            <View style={styles.activityCard}>
+              <View style={styles.activityItem}>
+                <View style={styles.activityIcon}>
+                  <Eye size={16} color="#3B82F6" />
+                </View>
+                <View style={styles.activityContent}>
+                  <Text style={styles.activityText}>Modern 2BR Apartment viewed 12 times</Text>
+                  <Text style={styles.activityTime}>2 hours ago</Text>
+                </View>
+              </View>
+              
+              <View style={styles.activityItem}>
+                <View style={styles.activityIcon}>
+                  <MessageCircle size={16} color="#10B981" />
+                </View>
+                <View style={styles.activityContent}>
+                  <Text style={styles.activityText}>New inquiry for Luxury Penthouse</Text>
+                  <Text style={styles.activityTime}>4 hours ago</Text>
+                </View>
+              </View>
+              
+              <View style={styles.activityItem}>
+                <View style={styles.activityIcon}>
+                  <DollarSign size={16} color="#F59E0B" />
+                </View>
+                <View style={styles.activityContent}>
+                  <Text style={styles.activityText}>Rent payment received - KES 35,000</Text>
+                  <Text style={styles.activityTime}>1 day ago</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          <View style={{ height: 100 }} />
+        </ScrollView>
       </View>
     );
   }
@@ -305,21 +415,6 @@ export default function HomeScreen() {
               <Text style={styles.resetButtonText}>Clear Filters</Text>
             </TouchableOpacity>
           </View>
-        ) : false ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>🎉</Text>
-            <Text style={styles.emptyTitle}>You&apos;ve seen all properties!</Text>
-            <Text style={styles.emptySubtitle}>{viewedProperties.length} properties viewed</Text>
-            <TouchableOpacity
-              style={styles.resetButton}
-              onPress={() => {
-                setCurrentIndex(0);
-                setViewedProperties([]);
-              }}
-            >
-              <Text style={styles.resetButtonText}>Start Over</Text>
-            </TouchableOpacity>
-          </View>
         ) : (
           <>
             {properties.map((property, index) => renderCard(property, index))}
@@ -339,7 +434,7 @@ export default function HomeScreen() {
               />
             </View>
             <Text style={styles.progressText}>
-              Property {currentIndex + 1} of {properties.length}
+              Property {currentIndex + 1} of {properties.length} • {viewedProperties.length} viewed
             </Text>
           </View>
         </View>
@@ -584,5 +679,128 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     textAlign: 'center',
     fontWeight: '500' as const,
+  },
+  // New landlord dashboard styles
+  landlordScrollView: {
+    flex: 1,
+  },
+  landlordHeader: {
+    padding: 20,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  analyticsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: 16,
+    gap: 12,
+  },
+  analyticsCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    width: '47%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  analyticsCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  analyticsValue: {
+    fontSize: 24,
+    fontWeight: '800' as const,
+    color: '#111827',
+  },
+  analyticsLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  analyticsChange: {
+    fontSize: 12,
+    color: '#10B981',
+    fontWeight: '500' as const,
+  },
+  quickActionsSection: {
+    padding: 20,
+    backgroundColor: '#FFFFFF',
+    marginTop: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: '#111827',
+    marginBottom: 16,
+  },
+  quickActionsGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  quickActionCard: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  quickActionText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: '#374151',
+    textAlign: 'center',
+  },
+  recentActivitySection: {
+    padding: 20,
+    backgroundColor: '#FFFFFF',
+    marginTop: 8,
+  },
+  activityCard: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+  },
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 12,
+  },
+  activityIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  activityContent: {
+    flex: 1,
+  },
+  activityText: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: '#111827',
+    marginBottom: 2,
+  },
+  activityTime: {
+    fontSize: 12,
+    color: '#6B7280',
   },
 });
