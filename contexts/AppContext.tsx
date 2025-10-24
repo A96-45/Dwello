@@ -36,9 +36,10 @@ export const [AppProvider, useApp] = createContextHook(() => {
 
   const loadPersistedData = async () => {
     try {
-      const [roleData, userData, savedData, collectionsData, vehiclesData, filtersData, onboardingData] = await Promise.all([
+      const [roleData, userData, verificationData, savedData, collectionsData, vehiclesData, filtersData, onboardingData] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.USER_ROLE),
         AsyncStorage.getItem(STORAGE_KEYS.USER_DATA),
+        AsyncStorage.getItem(STORAGE_KEYS.VERIFICATION_LEVEL),
         AsyncStorage.getItem(STORAGE_KEYS.SAVED_PROPERTIES),
         AsyncStorage.getItem(STORAGE_KEYS.COLLECTIONS),
         AsyncStorage.getItem(STORAGE_KEYS.VEHICLES),
@@ -48,6 +49,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
 
       if (roleData) setUserRole(roleData as UserRole);
       if (userData) setCurrentUser(JSON.parse(userData));
+      if (verificationData) setVerificationLevel(verificationData as VerificationLevel);
       if (savedData) setSavedProperties(JSON.parse(savedData));
       if (collectionsData) setCollections(JSON.parse(collectionsData));
       if (vehiclesData) setVehicles(JSON.parse(vehiclesData));
@@ -60,10 +62,31 @@ export const [AppProvider, useApp] = createContextHook(() => {
     }
   };
 
-  const switchRole = useCallback(async (newRole: UserRole) => {
+  const switchRole = useCallback(async (newRole: UserRole): Promise<{
+    success: boolean;
+    error?: string;
+    requiresVerification?: boolean;
+    requiredLevel?: VerificationLevel;
+  }> => {
+    // Check if switching to landlord requires verification
+    if (newRole === 'landlord' || newRole === 'both') {
+      const verificationCheck = VerificationService.canSwitchToLandlord(verificationLevel);
+      
+      if (!verificationCheck.allowed) {
+        return {
+          success: false,
+          error: verificationCheck.reason,
+          requiresVerification: true,
+          requiredLevel: verificationCheck.requiredLevel,
+        };
+      }
+    }
+    
     setUserRole(newRole);
     await AsyncStorage.setItem(STORAGE_KEYS.USER_ROLE, newRole);
-  }, []);
+    
+    return { success: true };
+  }, [verificationLevel]);
 
   const updateUser = useCallback(async (userData: User) => {
     setCurrentUser(userData);
@@ -140,12 +163,27 @@ export const [AppProvider, useApp] = createContextHook(() => {
     await AsyncStorage.setItem(STORAGE_KEYS.ONBOARDING_COMPLETE, JSON.stringify(true));
   }, []);
 
+  const updateVerificationLevel = useCallback(async (level: VerificationLevel) => {
+    setVerificationLevel(level);
+    await AsyncStorage.setItem(STORAGE_KEYS.VERIFICATION_LEVEL, level);
+  }, []);
+
+  const getUserPermissions = useCallback(() => {
+    return VerificationService.getUserPermissions(verificationLevel);
+  }, [verificationLevel]);
+
+  const canAccessFeature = useCallback((feature: keyof ReturnType<typeof VerificationService.getUserPermissions>) => {
+    const permissions = getUserPermissions();
+    return permissions[feature];
+  }, [getUserPermissions]);
+
   const isLandlord = useMemo(() => userRole === 'landlord' || userRole === 'both', [userRole]);
   const isTenant = useMemo(() => userRole === 'tenant' || userRole === 'both', [userRole]);
 
   return useMemo(() => ({
     userRole,
     currentUser,
+    verificationLevel,
     savedProperties,
     collections,
     vehicles,
@@ -154,6 +192,9 @@ export const [AppProvider, useApp] = createContextHook(() => {
     hasCompletedOnboarding,
     switchRole,
     updateUser,
+    updateVerificationLevel,
+    getUserPermissions,
+    canAccessFeature,
     toggleSaveProperty,
     addToCollection,
     createCollection,
@@ -168,6 +209,7 @@ export const [AppProvider, useApp] = createContextHook(() => {
   }), [
     userRole,
     currentUser,
+    verificationLevel,
     savedProperties,
     collections,
     vehicles,
@@ -176,6 +218,9 @@ export const [AppProvider, useApp] = createContextHook(() => {
     hasCompletedOnboarding,
     switchRole,
     updateUser,
+    updateVerificationLevel,
+    getUserPermissions,
+    canAccessFeature,
     toggleSaveProperty,
     addToCollection,
     createCollection,

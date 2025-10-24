@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -24,12 +25,46 @@ import {
 import * as Haptics from 'expo-haptics';
 import { useApp } from '@/contexts/AppContext';
 import { useRouter } from 'expo-router';
+import { SecurityService } from '@/services/SecurityService';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { userRole, switchRole, savedProperties, isLandlord, isTenant } = useApp();
+  const { userRole, switchRole, savedProperties, isLandlord, isTenant, verificationLevel, canAccessFeature } = useApp();
   const [isSwitchingRole, setIsSwitchingRole] = React.useState(false);
+
+  const getVerificationLabel = (level: string) => {
+    switch (level) {
+      case 'unverified': return '❌ Unverified';
+      case 'pending': return '⏳ Pending';
+      case 'basic': return '✅ Basic';
+      case 'property': return '🏠 Verified';
+      case 'premium': return '⭐ Premium';
+      default: return '❌ Unverified';
+    }
+  };
+
+  const getVerificationBadgeStyle = (level: string) => {
+    switch (level) {
+      case 'unverified': return styles.unverifiedBadge;
+      case 'pending': return styles.pendingBadge;
+      case 'basic': return styles.basicBadge;
+      case 'property': return styles.verifiedBadge;
+      case 'premium': return styles.premiumBadge;
+      default: return styles.unverifiedBadge;
+    }
+  };
+
+  const getVerificationTextStyle = (level: string) => {
+    switch (level) {
+      case 'unverified': return styles.unverifiedText;
+      case 'pending': return styles.pendingText;
+      case 'basic': return styles.basicText;
+      case 'property': return styles.verifiedText;
+      case 'premium': return styles.premiumText;
+      default: return styles.unverifiedText;
+    }
+  };
 
   const handleRoleSwitch = async () => {
     if (isSwitchingRole) return; // Prevent multiple taps
@@ -41,13 +76,58 @@ export default function ProfileScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       
       const newRole = userRole === 'tenant' ? 'landlord' : 'tenant';
-      await switchRole(newRole);
+      const result = await switchRole(newRole);
+      
+      if (!result.success) {
+        // Log security event
+        await SecurityService.logSecurityEvent(
+          'demo_user', // In production, use actual user ID
+          'role_switch_attempt',
+          'medium',
+          `Failed role switch attempt: ${result.error}`,
+          { 
+            attemptedRole: newRole,
+            currentRole: userRole,
+            verificationLevel,
+            requiresVerification: result.requiresVerification 
+          }
+        );
+        
+        // Show verification required alert
+        Alert.alert(
+          '🔒 Verification Required',
+          result.error || 'You need to verify your identity to become a landlord.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Start Verification', 
+              style: 'default',
+              onPress: () => router.push('/verification')
+            }
+          ]
+        );
+        
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        return;
+      }
+      
+      // Log successful role switch
+      await SecurityService.logSecurityEvent(
+        'demo_user',
+        'role_switch_attempt',
+        'low',
+        `Successful role switch to ${newRole}`,
+        { 
+          newRole,
+          previousRole: userRole,
+          verificationLevel 
+        }
+      );
       
       // Small delay to let the context update
       await new Promise(resolve => setTimeout(resolve, 100));
       
       // Navigate to appropriate page based on new role
-      // The index tab automatically shows dashboard for landlords and home for tenants
       router.replace('/(tabs)');
       
       // Success haptic feedback
@@ -75,6 +155,13 @@ export default function ProfileScreen() {
                   {userRole === 'tenant' ? '🏠 Tenant' : userRole === 'landlord' ? '🏢 Landlord' : '👥 Both'}
                 </Text>
               </View>
+              {(userRole === 'landlord' || userRole === 'both') && (
+                <View style={[styles.verificationBadge, getVerificationBadgeStyle(verificationLevel)]}>
+                  <Text style={[styles.verificationText, getVerificationTextStyle(verificationLevel)]}>
+                    {getVerificationLabel(verificationLevel)}
+                  </Text>
+                </View>
+              )}
             </View>
             <View style={styles.stats}>
               <Text style={styles.stat}>{savedProperties.length} saved</Text>
@@ -191,6 +278,41 @@ export default function ProfileScreen() {
             <Text style={styles.menuText}>Transaction History</Text>
           </TouchableOpacity>
         </View>
+
+        {(userRole === 'landlord' || userRole === 'both') && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Verification & Security</Text>
+            <TouchableOpacity 
+              style={styles.menuItem}
+              onPress={() => router.push('/verification')}
+            >
+              <View style={styles.menuIcon}>
+                <User size={22} color="#3B82F6" />
+              </View>
+              <View style={styles.menuContent}>
+                <Text style={styles.menuText}>Identity Verification</Text>
+                <View style={[styles.badge, getVerificationBadgeStyle(verificationLevel)]}>
+                  <Text style={[styles.badgeText, getVerificationTextStyle(verificationLevel)]}>
+                    {verificationLevel.toUpperCase()}
+                  </Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+            {verificationLevel === 'unverified' && (
+              <TouchableOpacity 
+                style={[styles.menuItem, styles.warningItem]}
+                onPress={() => router.push('/verification')}
+              >
+                <View style={[styles.menuIcon, styles.warningIcon]}>
+                  <Settings size={22} color="#F59E0B" />
+                </View>
+                <Text style={[styles.menuText, styles.warningText]}>
+                  Complete verification to access landlord features
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
@@ -347,6 +469,58 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
     marginTop: 2,
+  },
+  verificationBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  verificationText: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+  },
+  unverifiedBadge: {
+    backgroundColor: '#FEE2E2',
+  },
+  unverifiedText: {
+    color: '#EF4444',
+  },
+  pendingBadge: {
+    backgroundColor: '#FEF3C7',
+  },
+  pendingText: {
+    color: '#F59E0B',
+  },
+  basicBadge: {
+    backgroundColor: '#DBEAFE',
+  },
+  basicText: {
+    color: '#3B82F6',
+  },
+  verifiedBadge: {
+    backgroundColor: '#D1FAE5',
+  },
+  verifiedText: {
+    color: '#10B981',
+  },
+  premiumBadge: {
+    backgroundColor: '#F3E8FF',
+  },
+  premiumText: {
+    color: '#8B5CF6',
+  },
+  warningItem: {
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    backgroundColor: '#FFFBEB',
+  },
+  warningIcon: {
+    backgroundColor: '#FED7AA',
+  },
+  warningText: {
+    color: '#F59E0B',
+    fontWeight: '600' as const,
   },
   content: {
     flex: 1,
